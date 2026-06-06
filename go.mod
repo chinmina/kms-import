@@ -1,3 +1,3 @@
 module github.com/chinmina/kms-import
 
-go 1.26.0
+go 1.26.4
