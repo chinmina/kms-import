@@ -16,10 +16,10 @@ Durable decisions that apply across all phases. Lock these; don’t relitigate p
 - **Alias normalisation**: lives in the CLI layer, not the library. Library accepts any valid KMS key identifier string verbatim.
 - **Library contract**: returns `(result, error)`; never calls `os.Exit`. Exit-code handling is the CLI’s job only.
 - **Expiry format**: RFC 3339 / ISO 8601 (e.g. `2027-01-01T00:00:00Z`), AWS-CLI-consistent.
-- **Tooling**: **mise** manages toolchain versions (Go, goreleaser, golangci-lint, cosign) and defines build/test tasks. CI installs tools via `jdx/mise-action`. GitHub Actions pinned to latest **by commit SHA** (not floating tags).
+- **Tooling**: **mise** manages toolchain versions (Go, goreleaser, golangci-lint, cosign, **just**). **just** is the command runner — build/test/lint/verify tasks are defined in a `justfile` and invoked as `just <task>`. CI installs the toolchain (including `just`) via `jdx/mise-action`, then runs `just` tasks. GitHub Actions pinned to latest **by commit SHA** (not floating tags).
 - **Release**: GoReleaser v2. Split across two phases — snapshot build in CI (Phase 1, Linux only) and full tagged release with signing (Phase 9). Cosign **keyless** signing (Sigstore OIDC) via `cosign sign-blob` in the GoReleaser GHA workflow.
 - **Testing boundary**: no integration tests against real AWS in the repo. Core logic is exercised against a mock `KMSClient`; real-KMS verification is a manual operational smoke.
-- **Template source**: `.github/` workflows, `mise.toml`, and `.goreleaser.yaml` shapes are derived from `jamestelfer/dollop`. That repo was not readable during planning (private/unindexed) — the implementer copies its structure rather than reconstructing from this plan.
+- **Template source**: `.github/` workflows, `mise.toml`, `justfile`, and `.goreleaser.yaml` shapes are derived from `jamestelfer/dollop`. That repo was not readable during planning (private/unindexed) — the implementer copies its structure rather than reconstructing from this plan.
 
 ### Optional consideration (not locked)
 
@@ -33,13 +33,13 @@ The PRD requirements are already in EARS form with stable numeric IDs 1–44. No
 
 **Phase 1 is the P0 baseline.** The repo is greenfield, so there is no pre-existing state to stabilise — Phase 1 *establishes* the gate. The gate must be green at the end of Phase 1 and re-run before every subsequent phase completes.
 
-Standard commands (mise tasks; exact names may vary, behaviour is locked):
+Standard commands (`just` tasks; exact names may vary, behaviour is locked):
 
-- [ ] `mise run fmt` — `gofmt`/`go fmt ./...`, zero diff
-- [ ] `mise run lint` — `golangci-lint run`, zero findings
-- [ ] `mise run test` — `go test ./...`, all pass
-- [ ] `mise run build` — `goreleaser build --snapshot --clean --single-target` (linux/amd64) succeeds
-- [ ] `mise run verify` — composite gate (fmt-check + `go vet` + lint + test) used as the pass/fail gate per phase
+- [ ] `just fmt` — `gofmt`/`go fmt ./...`, zero diff
+- [ ] `just lint` — `golangci-lint run`, zero findings
+- [ ] `just test` — `go test ./...`, all pass
+- [ ] `just build` — `goreleaser build --snapshot --clean --single-target` (linux/amd64) succeeds
+- [ ] `just verify` — composite gate (fmt-check + `go vet` + lint + test) used as the pass/fail gate per phase
 
 If the gate fails at the end of Phase 1, fix before starting Phase 3. Do not advance phases while the gate is red.
 
@@ -57,32 +57,32 @@ Prove the build-and-release pipeline end to end before any product logic exists.
 
 - Module path `github.com/chinmina/kms-import`; `go 1.26` in `go.mod`.
 - `main.go` lives in `cmd/kms-import/`.
-- mise owns tool versions and build tasks; CI installs via `jdx/mise-action`.
+- mise owns tool versions (including `just`); `just` is the command runner with tasks in a `justfile`; CI installs the toolchain via `jdx/mise-action`.
 - GitHub Actions pinned by commit SHA, latest available.
 - GoReleaser snapshot build in CI targets **linux/amd64 only**. No tags, no signing, no GitHub Release published this phase.
 
 ### Flex zone (implementation choice allowed)
 
-- Exact mise task names and `mise.toml` structure (copy dollop).
+- Exact `just` task names, `justfile`, and `mise.toml` structure (copy dollop).
 - Workflow file names/structure, job matrix shape, caching.
 - What the hello-world binary prints (version + usage is enough).
 - Linter config (`.golangci.yaml`) ruleset.
 
 ### End-to-end behaviour to implement
 
-`go build ./cmd/kms-import` produces a binary that runs and prints its version/usage. Pushing to a branch triggers CI: install tools via mise → fmt-check → vet → lint → test → `goreleaser build --snapshot --clean` for linux/amd64. CI is green and produces a snapshot artifact.
+`go build ./cmd/kms-import` produces a binary that runs and prints its version/usage. Pushing to a branch triggers CI: install toolchain via mise → run `just` tasks (fmt-check → vet → lint → test) → `goreleaser build --snapshot --clean` for linux/amd64. CI is green and produces a snapshot artifact.
 
 ### Acceptance criteria
 
-- [ ] `[observable]` `mise run build` produces a runnable linux/amd64 binary that prints version/usage.
+- [ ] `[observable]` `just build` produces a runnable linux/amd64 binary that prints version/usage.
 - [ ] `[observable]` CI workflow runs on push and completes green (lint + test + snapshot build).
 - [ ] `[observable]` `goreleaser build --snapshot --clean` succeeds locally and in CI.
 - [ ] `[structural]` `go.mod` declares `go 1.26`; module path is correct.
-- [ ] `[structural]` All GitHub Actions are pinned by commit SHA; mise installs the toolchain.
+- [ ] `[structural]` All GitHub Actions are pinned by commit SHA; mise installs the toolchain (including `just`).
 
 ### Verification
 
-Push a branch; observe the CI run go green. Download the snapshot artifact from the run and execute it locally to confirm it runs. Run `mise run verify` locally and confirm zero findings.
+Push a branch; observe the CI run go green. Download the snapshot artifact from the run and execute it locally to confirm it runs. Run `just verify` locally and confirm zero findings.
 
 ### Replan triggers
 
@@ -95,7 +95,7 @@ Push a branch; observe the CI run go green. Download the snapshot artifact from 
 
 **EARS requirements**: none (dev-environment infra).
 
-**Carry-forward**: re-run `mise run verify`; confirm Phase 1 CI is still green.
+**Carry-forward**: re-run `just verify`; confirm Phase 1 CI is still green.
 
 ### Why this phase exists
 
@@ -103,8 +103,8 @@ Make the repo productive for agent-assisted development. A `CLAUDE.md` plus a se
 
 ### Locked decisions (non-negotiable)
 
-- `CLAUDE.md` documents the mise commands from Phase 1, the module/binary names, and the library-vs-CLI boundary.
-- A start hook bootstraps the toolchain (mise install) on Claude Code web session start.
+- `CLAUDE.md` documents the `just` commands from Phase 1, the module/binary names, and the library-vs-CLI boundary.
+- A start hook bootstraps the toolchain (`mise install`, which provides `just`) on Claude Code web session start.
 
 ### Flex zone (implementation choice allowed)
 
@@ -118,12 +118,12 @@ Opening a Claude Code web session on the repo runs the start hook, which install
 ### Acceptance criteria
 
 - [ ] `[observable]` A fresh Claude Code web session bootstraps the toolchain via the start hook with no manual steps.
-- [ ] `[observable]` `mise run verify` succeeds in that bootstrapped session.
+- [ ] `[observable]` `just verify` succeeds in that bootstrapped session.
 - [ ] `[structural]` `CLAUDE.md` lists the standard commands and the module/binary/layout conventions.
 
 ### Verification
 
-Start a fresh Claude Code web session; confirm the hook runs and `mise run test` works without manual tool installation.
+Start a fresh Claude Code web session; confirm the hook runs and `just test` works without manual tool installation.
 
 ### Replan triggers
 
@@ -135,7 +135,7 @@ Start a fresh Claude Code web session; confirm the hook runs and `mise run test`
 
 **EARS requirements**: R12, R13, R14, R15, R16, R28, R29, R30, R31, R32.
 
-**Carry-forward**: re-run `mise run verify`; Phase 1 CI green.
+**Carry-forward**: re-run `just verify`; Phase 1 CI green.
 
 ### Why this phase exists
 
@@ -190,7 +190,7 @@ Run the mock-client test suite. Then run a one-off real import against a throwaw
 
 **EARS requirements**: R1, R2, R6, R20, R23, R24, R33, R34.
 
-**Carry-forward**: re-run `mise run verify`; re-run Phase 3 mock tests; CI green.
+**Carry-forward**: re-run `just verify`; re-run Phase 3 mock tests; CI green.
 
 ### Why this phase exists
 
@@ -410,7 +410,7 @@ Run `--json` and pipe stdout through `jq`. Force a failure (bad permissions/key)
 
 **EARS requirements**: R35, R36, R37, R38, R39.
 
-**Carry-forward**: full `mise run verify` + a clean snapshot build before touching release config.
+**Carry-forward**: full `just verify` + a clean snapshot build before touching release config.
 
 ### Why this phase exists
 
