@@ -146,7 +146,7 @@ sequenceDiagram
 
 **`RSA_AES_KEY_WRAP_SHA_256` mechanics:** This algorithm requires generating an ephemeral AES-256 key, encrypting the key material with AES key wrap (RFC 3394), then encrypting the AES key with the RSA-OAEP-SHA-256 wrapping public key, and concatenating the encrypted AES key and the wrapped key material for submission. This is handled entirely within the library.
 
-**PEM format detection:** Detected from the PEM block `Type` field after `pem.Decode`. No external flag required. PKCS#1 is the primary path (GitHub’s output format); PKCS#8 is supported as a convenience. Both are converted to PKCS#8 DER before encryption.
+**PEM format detection:** Detected from the PEM block `Type` field after `pem.Decode`, in the library (`KeyMaterialFromPEM`) — decoding the key file is part of pushing a key, so it lives alongside the wrapping crypto rather than in the CLI. No external flag required. PKCS#1 is the primary path (GitHub’s output format); PKCS#8 is supported as a convenience. Both are converted to PKCS#8 DER before encryption.
 
 **`KMSClient` interface:** Defined in the library package with exactly the two methods used:
 

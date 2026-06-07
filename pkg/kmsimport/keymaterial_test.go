@@ -1,4 +1,4 @@
-package cli
+package kmsimport
 
 import (
 	"crypto/rand"
@@ -18,22 +18,22 @@ func pkcs1PEM(t *testing.T, priv *rsa.PrivateKey) []byte {
 	})
 }
 
-func TestDecodeKeyMaterial_Undecodable(t *testing.T) {
-	_, err := decodeKeyMaterial([]byte("this is not a PEM file"))
+func TestKeyMaterialFromPEM_Undecodable(t *testing.T) {
+	_, err := KeyMaterialFromPEM([]byte("this is not a PEM file"))
 	if err == nil {
-		t.Fatal("decodeKeyMaterial succeeded on undecodable input, want error")
+		t.Fatal("KeyMaterialFromPEM succeeded on undecodable input, want error")
 	}
 }
 
-func TestDecodeKeyMaterial_PKCS1(t *testing.T) {
+func TestKeyMaterialFromPEM_PKCS1(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
 
-	der, err := decodeKeyMaterial(pkcs1PEM(t, priv))
+	der, err := KeyMaterialFromPEM(pkcs1PEM(t, priv))
 	if err != nil {
-		t.Fatalf("decodeKeyMaterial returned error: %v", err)
+		t.Fatalf("KeyMaterialFromPEM returned error: %v", err)
 	}
 
 	// The result must be PKCS#8 DER that round-trips back to the same key.

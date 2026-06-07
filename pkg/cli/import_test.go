@@ -6,12 +6,23 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/pem"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 )
+
+// pkcs1PEM returns a PKCS#1 ("BEGIN RSA PRIVATE KEY") PEM encoding of priv,
+// GitHub's private key output format, for driving the end-to-end import.
+func pkcs1PEM(t *testing.T, priv *rsa.PrivateKey) []byte {
+	t.Helper()
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+	})
+}
 
 // wrappingKeyDER is a wrapping public key (SubjectPublicKeyInfo DER), the shape
 // GetParametersForImport returns. The library requests WrappingKeySpec RSA_4096,
