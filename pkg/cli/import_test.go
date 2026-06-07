@@ -7,10 +7,27 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 )
+
+// wrappingKeyDER is a wrapping public key (SubjectPublicKeyInfo DER), the shape
+// GetParametersForImport returns. It is generated once for the whole test
+// binary; the wrapping crypto accepts any RSA size, so 2048 keeps key
+// generation cheap.
+var wrappingKeyDER = sync.OnceValue(func() []byte {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		panic(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+	if err != nil {
+		panic(err)
+	}
+	return der
+})
 
 // fakeKMS is a KMSClient that returns a real wrapping public key so the import
 // crypto succeeds, then reports the key as resolved.
@@ -19,17 +36,9 @@ type fakeKMS struct {
 }
 
 func (f fakeKMS) GetParametersForImport(_ context.Context, _ *kms.GetParametersForImportInput, _ ...func(*kms.Options)) (*kms.GetParametersForImportOutput, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return nil, err
-	}
-	der, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
-	if err != nil {
-		return nil, err
-	}
 	return &kms.GetParametersForImportOutput{
 		KeyId:       &f.keyID,
-		PublicKey:   der,
+		PublicKey:   wrappingKeyDER(),
 		ImportToken: []byte("token"),
 	}, nil
 }

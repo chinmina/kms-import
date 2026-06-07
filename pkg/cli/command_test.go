@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	clipkg "github.com/urfave/cli/v3"
@@ -22,7 +23,7 @@ func TestCommand_HelpListsFlags(t *testing.T) {
 
 	help := out.String()
 	for _, want := range []string{"--key-file", "--key-id"} {
-		if !bytes.Contains([]byte(help), []byte(want)) {
+		if !strings.Contains(help, want) {
 			t.Errorf("help output does not mention %q\n%s", want, help)
 		}
 	}
