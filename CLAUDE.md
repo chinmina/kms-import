@@ -20,6 +20,13 @@ questions from memory. Fetch current docs before using an unfamiliar API:
   mechanics, exact wire formats, IAM policy shapes. The crypto is unforgiving —
   verify wire formats here, not from memory.
 
+## Modern Go is fine
+
+Recent syntax compiles here (Go 1.26) — use it where it reads well: `new(expr)`
+(pointer to an initialized value, e.g. `new(42)`), range-over-func iterators
+(`for v := range seq`), range-over-int (`for i := range n`), and the
+`min`/`max`/`clear` builtins.
+
 ## Build and test
 
 Run `just verify` (fmt + build + lint + test) before committing; `just build`
