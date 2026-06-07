@@ -20,4 +20,3 @@ Tracks implementation progress against [`plan-kms-import.md`](./plan-kms-import.
 Carry-forward knowledge that changes how later phases are built: scope changes, workarounds, and decisions that constrain future work. This is not a status log — phase completion is tracked by the checkboxes above. Append entries only when they will affect a future phase.
 
 - **CI trigger scope:** CI runs only on pushes to `main` and on `pull_request`. Pushes to other branches (e.g. the `claude/*` feature branches) do not trigger CI — open a PR to exercise CI for branch work.
-- **`just verify` does not fail on unformatted code:** the recipe is `fmt build lint test`, and `fmt` rewrites files in place (`gofmt -w .`) instead of failing on a diff. A stricter gate (fmt-check + `go vet`) would need to be added separately.
