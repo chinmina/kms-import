@@ -4,8 +4,8 @@ Tracks implementation progress against [`plan-kms-import.md`](./plan-kms-import.
 
 ## Phases
 
-- [ ] **Phase 1** — Hello-world binary + CI + GoReleaser snapshot (tracer bullet / P0)
-- [ ] **Phase 2** — CLAUDE.md + Claude Code web start hook
+- [x] **Phase 1** — Hello-world binary + CI + GoReleaser snapshot (tracer bullet / P0)
+- [x] **Phase 2** — CLAUDE.md + Claude Code web start hook
 - [ ] **Phase 3** — Crypto + library import core (R12–R16, R28–R32)
 - [ ] **Phase 4** — Minimal CLI end-to-end (R1, R2, R6, R20, R23, R24, R33, R34)
 - [ ] **Phase 5** — PEM format coverage + input errors (R3, R4, R5)
@@ -17,6 +17,6 @@ Tracks implementation progress against [`plan-kms-import.md`](./plan-kms-import.
 
 ## Lessons learned
 
-Only things that affect later phases: scope changes, workarounds required, and decisions that constrain future work. Append as they arise.
+Carry-forward knowledge that changes how later phases are built: scope changes, workarounds, and decisions that constrain future work. This is not a status log — phase completion is tracked by the checkboxes above. Append entries only when they will affect a future phase.
 
-- _(none yet)_
+- **CI trigger scope:** CI runs only on pushes to `main` and on `pull_request`. Pushes to other branches (e.g. the `claude/*` feature branches) do not trigger CI — open a PR to exercise CI for branch work.
