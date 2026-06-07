@@ -214,11 +214,11 @@ Turn the library into a runnable operator tool. This is the first point the bina
 
 ### Acceptance criteria
 
-- [ ] `[observable]` Running the binary against a real KMS key + PKCS#1 PEM imports successfully and prints key ID + state.
-- [ ] `[observable]` Undecodable/garbage PEM exits non-zero with a clear error.
-- [ ] `[observable]` `kms-import --help` shows the command (proves `Command()` mounts).
-- [ ] `[structural]` `Command()` returns `*cli.Command` from a `pkg/` package; `cmd/` is a thin wrapper only.
-- [ ] `[structural]` CLI builds the SDK client; library still receives it via injection.
+- [ ] `[observable]` Running the binary against a real KMS key + PKCS#1 PEM imports successfully and prints key ID + state. *(deferred: no AWS credentials in sandbox — manual operational smoke)*
+- [x] `[observable]` Undecodable/garbage PEM exits non-zero with a clear error.
+- [x] `[observable]` `kms-import --help` shows the command (proves `Command()` mounts).
+- [x] `[structural]` `Command()` returns `*cli.Command` from a `pkg/` package; `cmd/` is a thin wrapper only.
+- [x] `[structural]` CLI builds the SDK client; library still receives it via injection.
 
 ### Verification
 
