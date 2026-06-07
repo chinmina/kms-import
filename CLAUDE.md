@@ -1,79 +1,57 @@
 # kms-import
 
 CLI tool and Go library that imports a GitHub App private key (PEM) into AWS KMS
-as non-extractable key material, so JWT signing can be delegated to the KMS
-`Sign` API. See `docs/prd-kms-import.md` and `docs/plan-kms-import.md`.
+as non-extractable key material. See `docs/prd-kms-import.md` and
+`docs/plan-kms-import.md` for the spec and phased plan;
+`docs/progress-kms-import.md` tracks status.
 
-## Go version
+## Authoritative documentation (mandatory)
 
-This project uses **Go 1.26**, which was released after the AI knowledge cutoff.
-Do not rely on training data for Go stdlib or dependency APIs — always fetch
-current documentation via Context7 before using unfamiliar APIs.
+Go 1.26 and the AWS SDK here postdate the training cutoff — do not answer API
+questions from memory. Fetch current docs before using an unfamiliar API:
+
+- **Context7** for language/SDK/framework APIs, using these IDs (resolve others
+  as needed):
+  - Go 1.26 stdlib (`crypto/*`, `encoding/pem`, …): `/websites/pkg_go_dev_std`
+  - `aws-sdk-go-v2/service/kms`: `/websites/aws_amazon_sdk-for-go_v2_developer-guide`
+  - `github.com/urfave/cli/v3` (Phase 4+): `/urfave/cli`
+- **AWS Knowledge Base MCP** (`aws___search_documentation` /
+  `aws___read_documentation`) for AWS *service* behaviour: KMS import/wrapping
+  mechanics, exact wire formats, IAM policy shapes. The crypto is unforgiving —
+  verify wire formats here, not from memory.
+
+## Modern Go is fine
+
+Recent syntax compiles here (Go 1.26) — use it where it reads well: `new(expr)`
+(pointer to an initialized value, e.g. `new(42)`), range-over-func iterators
+(`for v := range seq`), range-over-int (`for i := range n`), and the
+`min`/`max`/`clear` builtins.
 
 ## Build and test
 
-```
-just verify    # fmt + build + lint + test (run before committing)
-just build     # produces dist/kms-import
-just test      # go test ./...
-just fmt       # gofmt -w .
-just lint      # golangci-lint run ./...
-```
+Run `just verify` (fmt + build + lint + test) before committing; `just build`
+produces `dist/kms-import`. Toolchain versions are pinned in `mise.toml`; the
+Claude Code web session-start hook installs them.
 
-Toolchain versions (Go, golangci-lint, goreleaser, just) are pinned in
-`mise.toml` and installed via mise. In Claude Code on the web, the
-`.claude/hooks/session-start.sh` hook runs `mise install` and `just build` on
-session start.
+## Architecture
 
-## Project layout
-
-```
-cmd/kms-import/main.go     entry point; thin wrapper over the CLI package
-internal/buildinfo/        version string stamped at build time
-pkg/                       (added in later phases) importable library + CLI Command()
+```text
+cmd/kms-import/      thin binary wrapper
+pkg/kmsimport/       importable library: Import, KMSClient, wrapping crypto
+pkg/cli/             CLI Command() (Phase 4+)
+internal/buildinfo/  build-time version string
 ```
 
-Planned package boundary (see the plan):
+- `pkg/kmsimport/` — `Import(ctx, opts...) (Result, error)` with functional
+  options and the two-method `KMSClient` interface. **Never constructs an SDK
+  client and never calls `os.Exit`** — the caller injects the client.
+- `pkg/cli/` — `Command()` returns a `urfave/cli` v3 `*cli.Command` (mountable as
+  a subcommand). SDK client construction, alias normalisation, and exit-code
+  mapping live here, not in the library.
+- Wrapping algorithm is fixed at `RSA_AES_KEY_WRAP_SHA_256` + `RSA_4096` — not
+  configurable. No integration tests against real AWS live in the repo.
 
-- `pkg/kmsimport/` — the importable library: `Import(ctx, opts...) (Result, error)`,
-  functional options, the two-method `KMSClient` interface. **Never constructs an
-  AWS SDK client and never calls `os.Exit`** — the caller injects the client.
-- `pkg/cli/` — `Command()` returning a `urfave/cli` v3 `*cli.Command` that can be
-  mounted as a subcommand of another app (e.g. `chinmina-bridge kms import`).
-  Alias normalisation and SDK client construction live here, not in the library.
+## Conventions
 
-## Phasing
-
-Implementation follows `docs/plan-kms-import.md` (Phases 1–10) with progress
-tracked in `docs/progress-kms-import.md`. Phase 1 is a tracer-bullet build
-(hello-world binary + CI + GoReleaser snapshot); product logic starts at
-Phase 3.
-
-## Commits and PR titles
-
-Use Conventional Commits for all commit messages and PR titles.
-
-| Type | When to use | Version bump |
-|---|---|---|
-| `feat: <description>` | new user-visible feature | minor |
-| `fix: <description>` | bug fix | patch |
-| `feat!:` or `BREAKING CHANGE:` in body | breaking change | major |
-| `chore:`, `docs:`, `refactor:`, `test:` | maintenance, no behaviour change | none |
-
-## Key conventions
-
-- The library returns `(Result, error)`; only the CLI maps errors to exit codes.
-- The wrapping algorithm is fixed: `RSA_AES_KEY_WRAP_SHA_256` + `RSA_4096`. Not
-  configurable.
-- Dependencies are injected (the `KMSClient` interface) — keep it that way for
-  testability. No integration tests against real AWS live in the repo.
-
-## Major dependencies
-
-Use Context7 for up-to-date documentation — do not guess at APIs. (Added as the
-relevant phases land.)
-
-| Library | Context7 ID | Notes |
-|---|---|---|
-| `github.com/urfave/cli/v3` | `/urfave/cli` | CLI framework; `Command()`, flags, mutual exclusion |
-| `github.com/aws/aws-sdk-go-v2/service/kms` | `/websites/aws_amazon_sdk-for-go_v2_developer-guide` | KMS `GetParametersForImport`, `ImportKeyMaterial` |
+Conventional Commits for commit messages and PR titles (`feat`, `fix`, `chore`,
+`docs`, `refactor`, `test`; `feat!` / `BREAKING CHANGE:` for breaking changes).
