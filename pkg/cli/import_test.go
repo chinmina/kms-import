@@ -14,11 +14,11 @@ import (
 )
 
 // wrappingKeyDER is a wrapping public key (SubjectPublicKeyInfo DER), the shape
-// GetParametersForImport returns. It is generated once for the whole test
-// binary; the wrapping crypto accepts any RSA size, so 2048 keeps key
-// generation cheap.
+// GetParametersForImport returns. The library requests WrappingKeySpec RSA_4096,
+// so KMS always returns a 4096-bit key — match that here. Generated once for the
+// whole test binary to keep the cost to a single keygen.
 var wrappingKeyDER = sync.OnceValue(func() []byte {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		panic(err)
 	}
