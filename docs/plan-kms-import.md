@@ -11,7 +11,7 @@ Durable decisions that apply across all phases. Lock these; don’t relitigate p
 - **CLI framework**: urfave/cli **v3** (stable — v3.4.1, ~20k importers). `Command()` returns `*cli.Command` so it can be mounted as a subcommand of another urfave/cli app (e.g. `chinmina-bridge kms import`).
 - **Go version**: **1.26** mandated (current patch 1.26.4, 2 Jun 2026). `go.mod` declares `go 1.26`.
 - **Wrapping algorithm**: `RSA_AES_KEY_WRAP_SHA_256` + wrapping key spec `RSA_4096`, **hard-coded, not configurable**. Mechanics: ephemeral AES-256 key → AES key-wrap (RFC 3394) over the key material → RSA-OAEP-SHA-256 encrypt of the AES key with the wrapping public key → concatenate `(wrapped AES key || wrapped key material)` for submission.
-- **Key material conversion**: PEM type detected after `pem.Decode`. PKCS#1 (`BEGIN RSA PRIVATE KEY`, GitHub’s format) and PKCS#8 (`BEGIN PRIVATE KEY`) both normalised to PKCS#8 DER before encryption. Only RSA 2048 supported (the GitHub App key spec).
+- **Key material conversion**: PEM type detected after `pem.Decode`, **in the library** (`KeyMaterialFromPEM`) — decoding the operator's key file is part of pushing a key. PKCS#1 (`BEGIN RSA PRIVATE KEY`, GitHub’s format) and PKCS#8 (`BEGIN PRIVATE KEY`) both normalised to PKCS#8 DER before encryption. Only RSA 2048 supported (the GitHub App key spec).
 - **`KMSClient` interface**: defined in the library, exactly two methods (`GetParametersForImport`, `ImportKeyMaterial`). The AWS SDK `*kms.Client` satisfies it. **The library never constructs or configures an SDK client** — the caller injects it.
 - **Alias normalisation**: lives in the CLI layer, not the library. Library accepts any valid KMS key identifier string verbatim.
 - **Library contract**: returns `(result, error)`; never calls `os.Exit`. Exit-code handling is the CLI’s job only.
@@ -148,7 +148,7 @@ This is the highest-risk slice — the wrapping cryptography is unforgiving and 
 - `GetParametersForImport` uses `RSA_AES_KEY_WRAP_SHA_256` + `RSA_4096` (R12); import token and wrapping public key come from the **same** GPI response (R15).
 - Encryption follows the locked RSA_AES_KEY_WRAP_SHA_256 mechanics (R13); `ImportKeyMaterial` submits encrypted material + that import token (R14).
 - Default `ExpirationModel = KEY_MATERIAL_DOES_NOT_EXPIRE`, `ValidTo` omitted (R16).
-- Library accepts key material as PKCS#8 DER (conversion from PEM is Phase 4/5’s input concern; core takes DER).
+- Library accepts pre-decoded PKCS#8 DER via `WithKeyMaterial`, **and** owns PEM→DER conversion as a separate documented function (`KeyMaterialFromPEM`, added in Phase 4). Decoding the operator's key file is part of pushing a key and belongs in the library, not a CLI wrapper. (Earlier drafts scoped PEM conversion to the CLI; that was wrong and has been corrected — the CLI only reads the file and calls the library.)
 
 ### Flex zone (implementation choice allowed)
 
@@ -199,7 +199,7 @@ Turn the library into a runnable operator tool. This is the first point the bina
 ### Locked decisions (non-negotiable)
 
 - `Command()` returns a urfave/cli v3 `*cli.Command` (R33), defined in a `pkg/` package (e.g. `pkg/cli/`); `cmd/kms-import` is a thin wrapper constructing a `cli.Command`/app around it (R34).
-- `--key-file` accepts a PEM path (R1); PKCS#1 detected and converted to PKCS#8 DER (R2); undecodable PEM errors out (R6).
+- `--key-file` accepts a PEM path (R1); the CLI reads the file and calls the library's `KeyMaterialFromPEM`, which detects PKCS#1 and converts to PKCS#8 DER (R2) and errors on undecodable PEM (R6). Format handling lives in the library, not the CLI.
 - AWS credentials via the standard SDK chain (R20); absent `--profile`/`--region`, defer to SDK defaults (R23). The CLI constructs the SDK client and injects it into the library.
 - Successful import prints a human-readable confirmation with resolved key ID + key state (R24).
 
@@ -214,11 +214,11 @@ Turn the library into a runnable operator tool. This is the first point the bina
 
 ### Acceptance criteria
 
-- [ ] `[observable]` Running the binary against a real KMS key + PKCS#1 PEM imports successfully and prints key ID + state.
-- [ ] `[observable]` Undecodable/garbage PEM exits non-zero with a clear error.
-- [ ] `[observable]` `kms-import --help` shows the command (proves `Command()` mounts).
-- [ ] `[structural]` `Command()` returns `*cli.Command` from a `pkg/` package; `cmd/` is a thin wrapper only.
-- [ ] `[structural]` CLI builds the SDK client; library still receives it via injection.
+- [ ] `[observable]` Running the binary against a real KMS key + PKCS#1 PEM imports successfully and prints key ID + state. *(deferred: no AWS credentials in sandbox — manual operational smoke)*
+- [x] `[observable]` Undecodable/garbage PEM exits non-zero with a clear error.
+- [x] `[observable]` `kms-import --help` shows the command (proves `Command()` mounts).
+- [x] `[structural]` `Command()` returns `*cli.Command` from a `pkg/` package; `cmd/` is a thin wrapper only.
+- [x] `[structural]` CLI builds the SDK client; library still receives it via injection.
 
 ### Verification
 
@@ -246,9 +246,9 @@ Harden the input path so the tool fails clearly instead of mysteriously on the f
 
 ### Locked decisions (non-negotiable)
 
-- `BEGIN PRIVATE KEY` treated as PKCS#8, converted to DER (R3).
-- Any other PEM header → error naming the unsupported format (R4).
-- Unreadable `--key-file` → error identifying file + reason (R5).
+- `BEGIN PRIVATE KEY` treated as PKCS#8, converted to DER (R3) — extends the library's `KeyMaterialFromPEM`, not the CLI.
+- Any other PEM header → error naming the unsupported format (R4), raised by the library function.
+- Unreadable `--key-file` → error identifying file + reason (R5). File I/O is the CLI's concern (it reads the path); decode/format errors are the library's.
 
 ### Flex zone
 
@@ -263,7 +263,7 @@ PKCS#8 PEM imports identically to PKCS#1. Unsupported headers and unreadable fil
 - [ ] `[observable]` PKCS#8 PEM imports successfully (parity with PKCS#1).
 - [ ] `[observable]` Unsupported PEM header exits non-zero, error names the format.
 - [ ] `[observable]` Missing/unreadable file exits non-zero, error names file + reason.
-- [ ] `[structural]` Format detection keys off the `pem.Decode` `Type` field; no format flag exists.
+- [ ] `[structural]` Format detection keys off the `pem.Decode` `Type` field inside the library's `KeyMaterialFromPEM`; no format flag exists.
 
 ### Verification
 

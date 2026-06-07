@@ -37,17 +37,19 @@ Claude Code web session-start hook installs them.
 
 ```text
 cmd/kms-import/      thin binary wrapper
-pkg/kmsimport/       importable library: Import, KMSClient, wrapping crypto
+pkg/kmsimport/       importable library: Import, KMSClient, PEM decode, wrapping crypto
 pkg/cli/             CLI Command() (Phase 4+)
 internal/buildinfo/  build-time version string
 ```
 
 - `pkg/kmsimport/` — `Import(ctx, opts...) (Result, error)` with functional
   options and the two-method `KMSClient` interface. **Never constructs an SDK
-  client and never calls `os.Exit`** — the caller injects the client.
+  client and never calls `os.Exit`** — the caller injects the client. Owns every
+  step of pushing a key, including PEM→PKCS#8-DER conversion via the documented
+  `KeyMaterialFromPEM` — key-material decoding is a library concern, not the CLI's.
 - `pkg/cli/` — `Command()` returns a `urfave/cli` v3 `*cli.Command` (mountable as
-  a subcommand). SDK client construction, alias normalisation, and exit-code
-  mapping live here, not in the library.
+  a subcommand). SDK client construction, alias normalisation (key *identifier*
+  only), and exit-code mapping live here, not in the library.
 - Wrapping algorithm is fixed at `RSA_AES_KEY_WRAP_SHA_256` + `RSA_4096` — not
   configurable. No integration tests against real AWS live in the repo.
 
