@@ -62,12 +62,12 @@ func TestImport_Success(t *testing.T) {
 
 	m := &mockKMS{
 		gpiOutput: &kms.GetParametersForImportOutput{
-			KeyId:       aws.String(keyARN),
+			KeyId:       new(keyARN),
 			PublicKey:   pubDER,
 			ImportToken: token,
 		},
 		ikmOutput: &kms.ImportKeyMaterialOutput{
-			KeyId: aws.String(keyARN),
+			KeyId: new(keyARN),
 		},
 	}
 
@@ -182,7 +182,7 @@ func TestImport_IKMFailureSurfaces(t *testing.T) {
 	sentinel := errors.New("InvalidImportTokenException")
 	m := &mockKMS{
 		gpiOutput: &kms.GetParametersForImportOutput{
-			KeyId:       aws.String("alias/app"),
+			KeyId:       new("alias/app"),
 			PublicKey:   pubDER,
 			ImportToken: []byte("token"),
 		},
@@ -210,7 +210,7 @@ func TestImport_NonRSAWrappingKey(t *testing.T) {
 	}
 	m := &mockKMS{
 		gpiOutput: &kms.GetParametersForImportOutput{
-			KeyId:       aws.String("alias/app"),
+			KeyId:       new("alias/app"),
 			PublicKey:   pubDER,
 			ImportToken: []byte("token"),
 		},

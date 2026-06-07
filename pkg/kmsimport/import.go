@@ -92,7 +92,7 @@ func Import(ctx context.Context, opts ...Option) (Result, error) {
 	}
 
 	params, err := o.client.GetParametersForImport(ctx, &kms.GetParametersForImportInput{
-		KeyId:             aws.String(o.keyID),
+		KeyId:             new(o.keyID),
 		WrappingAlgorithm: types.AlgorithmSpecRsaAesKeyWrapSha256,
 		WrappingKeySpec:   types.WrappingKeySpecRsa4096,
 	})
@@ -111,7 +111,7 @@ func Import(ctx context.Context, opts ...Option) (Result, error) {
 	}
 
 	out, err := o.client.ImportKeyMaterial(ctx, &kms.ImportKeyMaterialInput{
-		KeyId:                aws.String(o.keyID),
+		KeyId:                new(o.keyID),
 		ImportToken:          params.ImportToken,
 		EncryptedKeyMaterial: encrypted,
 		ExpirationModel:      types.ExpirationModelTypeKeyMaterialDoesNotExpire,
