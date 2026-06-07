@@ -35,11 +35,11 @@ The PRD requirements are already in EARS form with stable numeric IDs 1–44. No
 
 Standard commands (`just` tasks; exact names may vary, behaviour is locked):
 
-- [ ] `just fmt` — `gofmt`/`go fmt ./...`, zero diff
-- [ ] `just lint` — `golangci-lint run`, zero findings
-- [ ] `just test` — `go test ./...`, all pass
-- [ ] `just build` — `goreleaser build --snapshot --clean --single-target` (linux/amd64) succeeds
-- [ ] `just verify` — composite gate (fmt-check + `go vet` + lint + test) used as the pass/fail gate per phase
+- [x] `just fmt` — `gofmt`/`go fmt ./...`, zero diff
+- [x] `just lint` — `golangci-lint run`, zero findings
+- [x] `just test` — `go test ./...`, all pass
+- [x] `just build` — `goreleaser build --snapshot --clean --single-target` (linux/amd64) succeeds
+- [x] `just verify` — composite gate (fmt-check + `go vet` + lint + test) used as the pass/fail gate per phase
 
 If the gate fails at the end of Phase 1, fix before starting Phase 3. Do not advance phases while the gate is red.
 
@@ -74,11 +74,11 @@ Prove the build-and-release pipeline end to end before any product logic exists.
 
 ### Acceptance criteria
 
-- [ ] `[observable]` `just build` produces a runnable linux/amd64 binary that prints version/usage.
-- [ ] `[observable]` CI workflow runs on push and completes green (lint + test + snapshot build).
-- [ ] `[observable]` `goreleaser build --snapshot --clean` succeeds locally and in CI.
-- [ ] `[structural]` `go.mod` declares `go 1.26`; module path is correct.
-- [ ] `[structural]` All GitHub Actions are pinned by commit SHA; mise installs the toolchain (including `just`).
+- [x] `[observable]` `just build` produces a runnable linux/amd64 binary that prints version/usage.
+- [x] `[observable]` CI workflow runs on push and completes green (lint + test + snapshot build).
+- [x] `[observable]` `goreleaser build --snapshot --clean` succeeds locally and in CI.
+- [x] `[structural]` `go.mod` declares `go 1.26`; module path is correct.
+- [x] `[structural]` All GitHub Actions are pinned by commit SHA; mise installs the toolchain (including `just`).
 
 ### Verification
 

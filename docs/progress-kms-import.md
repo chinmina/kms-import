@@ -4,7 +4,7 @@ Tracks implementation progress against [`plan-kms-import.md`](./plan-kms-import.
 
 ## Phases
 
-- [ ] **Phase 1** — Hello-world binary + CI + GoReleaser snapshot (tracer bullet / P0)
+- [x] **Phase 1** — Hello-world binary + CI + GoReleaser snapshot (tracer bullet / P0)
 - [ ] **Phase 2** — CLAUDE.md + Claude Code web start hook
 - [ ] **Phase 3** — Crypto + library import core (R12–R16, R28–R32)
 - [ ] **Phase 4** — Minimal CLI end-to-end (R1, R2, R6, R20, R23, R24, R33, R34)
@@ -19,4 +19,6 @@ Tracks implementation progress against [`plan-kms-import.md`](./plan-kms-import.
 
 Only things that affect later phases: scope changes, workarounds required, and decisions that constrain future work. Append as they arise.
 
-- _(none yet)_
+- **Phase 1 (complete):** local quality gate green (`just fmt`/`build`/`lint`/`test`/`verify`) and `goreleaser build --snapshot --clean --single-target` builds linux/amd64. CI (Lint + Test + Build snapshot) ran green on `main` at commit `83c6234` with all actions SHA-pinned and the toolchain installed via mise.
+- **CI trigger scope:** CI runs on pushes to `main` and on `pull_request`. Pushes to other branches (e.g. the `claude/*` feature branches) do not trigger CI on their own — open a PR to exercise CI for branch work.
+- **`just verify` composition:** the recipe is `fmt build lint test`; `fmt` rewrites files in place (`gofmt -w .`) rather than failing on a diff. If a stricter pre-commit/CI gate is wanted later, add a separate fmt-check/`go vet` step.
