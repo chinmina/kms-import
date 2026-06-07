@@ -99,6 +99,9 @@ func Import(ctx context.Context, opts ...Option) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("get parameters for import: %w", err)
 	}
+	if params == nil {
+		return Result{}, errors.New("get parameters for import: nil response")
+	}
 
 	wrappingKey, err := parseWrappingKey(params.PublicKey)
 	if err != nil {
@@ -118,6 +121,9 @@ func Import(ctx context.Context, opts ...Option) (Result, error) {
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("import key material: %w", err)
+	}
+	if out == nil {
+		return Result{}, errors.New("import key material: nil response")
 	}
 
 	keyID := o.keyID

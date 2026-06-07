@@ -35,7 +35,7 @@ Claude Code web session-start hook installs them.
 
 ## Architecture
 
-```
+```text
 cmd/kms-import/      thin binary wrapper
 pkg/kmsimport/       importable library: Import, KMSClient, wrapping crypto
 pkg/cli/             CLI Command() (Phase 4+)

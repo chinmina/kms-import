@@ -232,3 +232,39 @@ func TestImport_NonRSAWrappingKey(t *testing.T) {
 // The AWS SDK *kms.Client must satisfy the library's KMSClient interface so the
 // caller can inject it directly. This is a compile-time assertion.
 var _ KMSClient = (*kms.Client)(nil)
+
+func TestImport_NilGPIResponse(t *testing.T) {
+	// A misbehaving client returning (nil, nil) must surface an error, not panic.
+	m := &mockKMS{gpiOutput: nil}
+
+	_, err := Import(context.Background(),
+		WithClient(m),
+		WithKeyID("alias/app"),
+		WithKeyMaterial(mustHex(t, "3082010203040506")),
+	)
+	if err == nil {
+		t.Fatal("Import succeeded with a nil GPI response, want error")
+	}
+}
+
+func TestImport_NilIKMResponse(t *testing.T) {
+	_, pubDER := newWrappingKey(t)
+	// GPI succeeds, but ImportKeyMaterial returns (nil, nil).
+	m := &mockKMS{
+		gpiOutput: &kms.GetParametersForImportOutput{
+			KeyId:       new("alias/app"),
+			PublicKey:   pubDER,
+			ImportToken: []byte("token"),
+		},
+		ikmOutput: nil,
+	}
+
+	_, err := Import(context.Background(),
+		WithClient(m),
+		WithKeyID("alias/app"),
+		WithKeyMaterial(mustHex(t, "3082010203040506")),
+	)
+	if err == nil {
+		t.Fatal("Import succeeded with a nil IKM response, want error")
+	}
+}
