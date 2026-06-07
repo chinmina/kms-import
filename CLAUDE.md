@@ -4,11 +4,27 @@ CLI tool and Go library that imports a GitHub App private key (PEM) into AWS KMS
 as non-extractable key material, so JWT signing can be delegated to the KMS
 `Sign` API. See `docs/prd-kms-import.md` and `docs/plan-kms-import.md`.
 
-## Go version
+## Authoritative documentation (mandatory)
 
-This project uses **Go 1.26**, which was released after the AI knowledge cutoff.
-Do not rely on training data for Go stdlib or dependency APIs — always fetch
-current documentation via Context7 before using unfamiliar APIs.
+This project uses **Go 1.26** and SDK versions released after the AI knowledge
+cutoff. Do not answer API questions from training data. Before using an
+unfamiliar API, fetch current docs from these two sources — they are mandatory,
+not optional:
+
+- **Context7** — for language, SDK, and framework APIs (Go stdlib, AWS SDK,
+  urfave/cli). Use the registered IDs below; resolve new libraries as needed.
+- **AWS Knowledge Base MCP** (`aws___search_documentation` + `aws___read_documentation`)
+  — for AWS *service* behaviour and procedures: KMS import/wrapping mechanics,
+  exact wire formats, IAM policy shapes, CloudTrail. The crypto here is
+  unforgiving; verify wire-format details against this source, not memory.
+
+Registered Context7 IDs:
+
+| Library | Context7 ID |
+|---|---|
+| Go 1.26 standard library (`crypto/*`, `encoding/pem`, …) | `/websites/pkg_go_dev_std` |
+| `github.com/aws/aws-sdk-go-v2/service/kms` | `/websites/aws_amazon_sdk-for-go_v2_developer-guide` |
+| `github.com/urfave/cli/v3` (Phase 4+) | `/urfave/cli` |
 
 ## Build and test
 
@@ -30,10 +46,11 @@ session start.
 ```
 cmd/kms-import/main.go     entry point; thin wrapper over the CLI package
 internal/buildinfo/        version string stamped at build time
-pkg/                       (added in later phases) importable library + CLI Command()
+pkg/kmsimport/             importable library (Import, KMSClient, wrapping crypto)
+pkg/cli/                   CLI Command() (Phase 4+)
 ```
 
-Planned package boundary (see the plan):
+Package boundary (see the plan):
 
 - `pkg/kmsimport/` — the importable library: `Import(ctx, opts...) (Result, error)`,
   functional options, the two-method `KMSClient` interface. **Never constructs an
@@ -67,13 +84,3 @@ Use Conventional Commits for all commit messages and PR titles.
   configurable.
 - Dependencies are injected (the `KMSClient` interface) — keep it that way for
   testability. No integration tests against real AWS live in the repo.
-
-## Major dependencies
-
-Use Context7 for up-to-date documentation — do not guess at APIs. (Added as the
-relevant phases land.)
-
-| Library | Context7 ID | Notes |
-|---|---|---|
-| `github.com/urfave/cli/v3` | `/urfave/cli` | CLI framework; `Command()`, flags, mutual exclusion |
-| `github.com/aws/aws-sdk-go-v2/service/kms` | `/websites/aws_amazon_sdk-for-go_v2_developer-guide` | KMS `GetParametersForImport`, `ImportKeyMaterial` |

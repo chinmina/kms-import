@@ -59,8 +59,8 @@ func aesKeyWrapPad(kek, plaintext []byte) ([]byte, error) {
 
 	// Build the 64-bit AIV: 0xA65959A6 || MLI, where MLI is the unpadded
 	// plaintext length in octets, big-endian.
-	aiv := make([]byte, 8)
-	copy(aiv, rfc5649AIV)
+	var aiv [8]byte
+	copy(aiv[:], rfc5649AIV)
 	//nolint:gosec // length is bounded above by the MaxUint32 check above.
 	binary.BigEndian.PutUint32(aiv[4:], uint32(len(plaintext)))
 
@@ -73,10 +73,9 @@ func aesKeyWrapPad(kek, plaintext []byte) ([]byte, error) {
 	// integrity loop with AIV as the initial register.
 	if len(padded) == 8 {
 		out := make([]byte, 16)
-		in := make([]byte, 16)
-		copy(in, aiv)
-		copy(in[8:], padded)
-		block.Encrypt(out, in)
+		copy(out, aiv[:])
+		copy(out[8:], padded)
+		block.Encrypt(out, out) // exact dst/src overlap is permitted
 		return out, nil
 	}
 
@@ -85,24 +84,27 @@ func aesKeyWrapPad(kek, plaintext []byte) ([]byte, error) {
 
 // aesWrapCore performs the RFC 3394 key-wrap integrity loop over the padded
 // plaintext using iv as the initial integrity register. padded must be a
-// non-empty multiple of 8 octets.
-func aesWrapCore(block cipher.Block, iv, padded []byte) []byte {
+// non-empty multiple of 8 octets. The result is laid out in place as
+// A || R[1..n] and returned.
+func aesWrapCore(block cipher.Block, iv [8]byte, padded []byte) []byte {
 	n := len(padded) / 8
 
-	a := make([]byte, 8)
-	copy(a, iv)
-	r := make([]byte, len(padded))
+	// Operate directly on the output buffer: a is the 8-byte integrity
+	// register, r holds the n blocks, and together they are the result.
+	wrapped := make([]byte, 8+len(padded))
+	a := wrapped[:8]
+	r := wrapped[8:]
+	copy(a, iv[:])
 	copy(r, padded)
 
-	in := make([]byte, 16)
-	out := make([]byte, 16)
+	var in, out [16]byte
 	var tb [8]byte
 
 	for j := range 6 {
 		for i := 1; i <= n; i++ {
 			copy(in[:8], a)
 			copy(in[8:], r[(i-1)*8:i*8])
-			block.Encrypt(out, in)
+			block.Encrypt(out[:], in[:])
 
 			copy(a, out[:8])
 			binary.BigEndian.PutUint64(tb[:], uint64(n*j+i))
@@ -113,8 +115,5 @@ func aesWrapCore(block cipher.Block, iv, padded []byte) []byte {
 		}
 	}
 
-	wrapped := make([]byte, 8+len(r))
-	copy(wrapped, a)
-	copy(wrapped[8:], r)
 	return wrapped
 }
