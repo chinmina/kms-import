@@ -117,9 +117,9 @@ Opening a Claude Code web session on the repo runs the start hook, which install
 
 ### Acceptance criteria
 
-- [ ] `[observable]` A fresh Claude Code web session bootstraps the toolchain via the start hook with no manual steps.
-- [ ] `[observable]` `just verify` succeeds in that bootstrapped session.
-- [ ] `[structural]` `CLAUDE.md` lists the standard commands and the module/binary/layout conventions.
+- [x] `[observable]` A fresh Claude Code web session bootstraps the toolchain via the start hook with no manual steps.
+- [x] `[observable]` `just verify` succeeds in that bootstrapped session.
+- [x] `[structural]` `CLAUDE.md` lists the standard commands and the module/binary/layout conventions.
 
 ### Verification
 
