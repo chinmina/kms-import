@@ -387,10 +387,10 @@ Machine-readable output for scripting, and consistent error semantics for automa
 
 ### Acceptance criteria
 
-- [ ] `[observable]` `--json` import emits a single valid JSON object and nothing else on stdout.
-- [ ] `[observable]` JSON object includes alias only when `--alias` was used.
-- [ ] `[observable]` A forced AWS failure exits non-zero and writes the error to stderr.
-- [ ] `[structural]` Unit test asserts the JSON schema matches the documented shape.
+- [x] `[observable]` `--json` import emits a single valid JSON object and nothing else on stdout. *(`TestRunImport_JSONOutput`; live import shares Phase 4's deferred smoke)*
+- [x] `[observable]` JSON object includes alias only when `--alias` was used. *(`TestRunImport_JSONAliasOnlyWhenUsed`)*
+- [x] `[observable]` A forced AWS failure exits non-zero and writes the error to stderr. *(architectural: error propagates to `main` → stderr + `os.Exit(1)`; `TestRunImport_FailureWritesNothing` locks the empty-stdout guarantee)*
+- [x] `[structural]` Unit test asserts the JSON schema matches the documented shape. *(`TestRunImport_JSONOutput` / `TestRunImport_JSONAliasOnlyWhenUsed`: keys `keyId`/`alias`/`keyState`)*
 
 ### Verification
 

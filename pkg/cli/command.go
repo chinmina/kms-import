@@ -44,6 +44,10 @@ func Command() *clipkg.Command {
 				Name:  "expires",
 				Usage: "expiry for the imported key material as an RFC 3339 timestamp (e.g. 2027-01-01T00:00:00Z); omit for non-expiring material",
 			},
+			&clipkg.BoolFlag{
+				Name:  "json",
+				Usage: "emit the result as a JSON object and suppress all other output",
+			},
 		},
 		MutuallyExclusiveFlags: []clipkg.MutuallyExclusiveFlags{
 			{
@@ -85,7 +89,7 @@ func Command() *clipkg.Command {
 				return fmt.Errorf("load AWS config: %w", err)
 			}
 
-			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, displayAlias, pemBytes, expiry)
+			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, displayAlias, pemBytes, expiry, cmd.Bool("json"))
 		},
 	}
 }

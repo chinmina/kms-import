@@ -166,7 +166,7 @@ func TestCommand_HelpListsFlags(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"--key-file", "--key-id", "--key-arn", "--alias", "--profile", "--region", "--expires"} {
+	for _, want := range []string{"--key-file", "--key-id", "--key-arn", "--alias", "--profile", "--region", "--expires", "--json"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help output does not mention %q\n%s", want, help)
 		}
