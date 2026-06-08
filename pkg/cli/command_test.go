@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,8 +30,8 @@ func TestCommand_UnreadableKeyFile(t *testing.T) {
 	if !strings.Contains(err.Error(), missing) {
 		t.Errorf("error %q does not identify the file %q", err, missing)
 	}
-	if !strings.Contains(err.Error(), "no such file") {
-		t.Errorf("error %q does not state the reason", err)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("error %q does not wrap fs.ErrNotExist", err)
 	}
 }
 

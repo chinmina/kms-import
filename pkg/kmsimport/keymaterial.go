@@ -1,6 +1,7 @@
 package kmsimport
 
 import (
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -33,9 +34,14 @@ func KeyMaterialFromPEM(pemBytes []byte) ([]byte, error) {
 		}
 		return der, nil
 	case "PRIVATE KEY":
-		// Already PKCS#8; validate it parses and return the DER as-is.
-		if _, err := x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
+		// Already PKCS#8; validate it parses and is an RSA key (the only key
+		// type this tool supports) before returning the DER as-is.
+		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
 			return nil, fmt.Errorf("parse PKCS#8 private key: %w", err)
+		}
+		if _, ok := key.(*rsa.PrivateKey); !ok {
+			return nil, fmt.Errorf("unsupported private key type %T: only RSA keys are supported", key)
 		}
 		return block.Bytes, nil
 	default:

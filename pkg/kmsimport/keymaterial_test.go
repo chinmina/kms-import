@@ -1,6 +1,8 @@
 package kmsimport
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -69,6 +71,26 @@ func TestKeyMaterialFromPEM_UnsupportedHeader(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "EC PRIVATE KEY") {
 		t.Errorf("error %q does not name the unsupported format %q", err, "EC PRIVATE KEY")
+	}
+}
+
+func TestKeyMaterialFromPEM_PKCS8NonRSA(t *testing.T) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate EC key: %v", err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		t.Fatalf("marshal PKCS#8: %v", err)
+	}
+	ecPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+
+	_, err = KeyMaterialFromPEM(ecPEM)
+	if err == nil {
+		t.Fatal("KeyMaterialFromPEM accepted a non-RSA PKCS#8 key, want error")
+	}
+	if !strings.Contains(err.Error(), "RSA") {
+		t.Errorf("error %q does not explain that only RSA keys are supported", err)
 	}
 }
 
