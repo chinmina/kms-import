@@ -260,10 +260,10 @@ PKCS#8 PEM imports identically to PKCS#1. Unsupported headers and unreadable fil
 
 ### Acceptance criteria
 
-- [ ] `[observable]` PKCS#8 PEM imports successfully (parity with PKCS#1).
-- [ ] `[observable]` Unsupported PEM header exits non-zero, error names the format.
-- [ ] `[observable]` Missing/unreadable file exits non-zero, error names file + reason.
-- [ ] `[structural]` Format detection keys off the `pem.Decode` `Type` field inside the library's `KeyMaterialFromPEM`; no format flag exists.
+- [x] `[observable]` PKCS#8 PEM imports successfully (parity with PKCS#1). *(unit: `KeyMaterialFromPEM` round-trips PKCS#8; live import shares Phase 4's deferred smoke)*
+- [x] `[observable]` Unsupported PEM header exits non-zero, error names the format.
+- [x] `[observable]` Missing/unreadable file exits non-zero, error names file + reason.
+- [x] `[structural]` Format detection keys off the `pem.Decode` `Type` field inside the library's `KeyMaterialFromPEM`; no format flag exists.
 
 ### Verification
 
