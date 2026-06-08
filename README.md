@@ -29,7 +29,7 @@ go install github.com/chinmina/kms-import/cmd/kms-import@latest
 ## Usage
 
 ```sh
-kms-import --key-file app.pem --alias my-app-key
+kms-import --key-file app.pem --key-arn arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
 ```
 
 Reads the PEM, converts it to PKCS#8 DER, fetches wrapping parameters from KMS,
@@ -37,21 +37,19 @@ encrypts the key material, and calls `ImportKeyMaterial`. On success it prints a
 confirmation with the resolved key ID and resulting state:
 
 ```text
-Imported key material — alias: alias/my-app-key, key ID: 1234abcd-12ab-34cd-56ef-1234567890ab, state: Enabled
+Imported key material — key ID: 1234abcd-12ab-34cd-56ef-1234567890ab, state: Enabled
 ```
 
 ### CLI reference
 
-Exactly one target flag (`--key-id`, `--key-arn`, or `--alias`) is required;
-supplying more than one, or none, is an error. All other flags are optional
-except `--key-file`.
+Exactly one target flag (`--key-id` or `--key-arn`) is required; supplying both,
+or neither, is an error. All other flags are optional except `--key-file`.
 
 | Flag         | Type   | Default | Description |
 |--------------|--------|---------|-------------|
 | `--key-file` | string | —       | **Required.** Path to the PEM-encoded private key file. Accepts `BEGIN RSA PRIVATE KEY` (PKCS#1) and `BEGIN PRIVATE KEY` (PKCS#8); any other header is an error. |
-| `--key-id`   | string | —       | Target KMS key ID. Mutually exclusive with `--key-arn` and `--alias`. |
-| `--key-arn`  | string | —       | Target KMS key ARN. Mutually exclusive with `--key-id` and `--alias`. |
-| `--alias`    | string | —       | Target KMS key alias. The `alias/` prefix is prepended if absent. Mutually exclusive with `--key-id` and `--key-arn`. |
+| `--key-id`   | string | —       | Target KMS key ID. Mutually exclusive with `--key-arn`. |
+| `--key-arn`  | string | —       | Target KMS key ARN. Mutually exclusive with `--key-id`. |
 | `--expires`  | string | none (key material does not expire) | Expiry for the imported key material as an RFC 3339 timestamp (e.g. `2027-01-01T00:00:00Z`). A malformed or already-passed value is rejected before any AWS call is made. |
 | `--profile`  | string | SDK default | AWS named profile to use. |
 | `--region`   | string | SDK default | AWS region to use. |
@@ -59,11 +57,10 @@ except `--key-file`.
 | `--help`, `-h`    | bool | `false` | Show help. |
 | `--version`, `-v` | bool | `false` | Print the version. |
 
-**Target selection.** Exactly one of `--key-id` / `--key-arn` / `--alias` must be
-given (mutually exclusive). When `--alias my-app-key` is supplied without the
-`alias/` prefix, `kms-import` prepends it (`alias/my-app-key`); a value that
-already starts with `alias/` is used as-is. When the target was an alias, the
-alias is echoed in the confirmation output.
+**Target selection.** Exactly one of `--key-id` / `--key-arn` must be given
+(mutually exclusive). The KMS import APIs accept only a key ID or key ARN — not
+an alias — so there is no `--alias` flag; see the rotation workflow below for how
+aliases fit in.
 
 **Credentials.** Credentials and region resolve through the standard AWS SDK
 chain (environment variables, shared config/credentials files, IMDS). `--profile`
@@ -77,11 +74,10 @@ performs both the initial import and a reimport after material has expired or
 been deleted — there is no separate mode or flag. AWS requires a reimport to use
 the *same* key material as the original.
 
-**JSON output.** With `--json`, stdout carries only the result object; the
-`alias` field is present only when `--alias` was used:
+**JSON output.** With `--json`, stdout carries only the result object:
 
 ```json
-{"keyId":"1234abcd-12ab-34cd-56ef-1234567890ab","alias":"alias/my-app-key","keyState":"Enabled"}
+{"keyId":"1234abcd-12ab-34cd-56ef-1234567890ab","keyState":"Enabled"}
 ```
 
 **Errors.** Any AWS API failure exits non-zero with the error written to stderr;
@@ -117,7 +113,7 @@ cfg, _ := config.LoadDefaultConfig(ctx)
 der, _ := kmsimport.KeyMaterialFromPEM(pemBytes) // PEM (PKCS#1 or PKCS#8) → PKCS#8 DER
 res, err := kmsimport.Import(ctx,
 	kmsimport.WithClient(kms.NewFromConfig(cfg)),
-	kmsimport.WithKeyID("alias/my-app-key"),
+	kmsimport.WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 	kmsimport.WithKeyMaterial(der),
 )
 ```
@@ -238,8 +234,9 @@ to a new GitHub App private key:
    kms-import --key-file new-app.pem --key-arn arn:aws:kms:us-east-1:111122223333:key/<new-key-id>
    ```
 
-   Use `--key-id`/`--key-arn` here, not `--alias` — the alias still points at the
-   old key at this stage.
+   Import always targets a specific key generation by ID or ARN — the alias
+   still points at the old key at this stage, and the import APIs do not accept
+   an alias anyway.
 3. **Verify** the new key reached `Enabled` (the `kms-import` confirmation, or
    `aws kms describe-key`).
 4. **Update the alias** to point at the new key (via IaC or

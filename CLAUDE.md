@@ -48,8 +48,8 @@ internal/buildinfo/  build-time version string
   step of pushing a key, including PEM→PKCS#8-DER conversion via the documented
   `KeyMaterialFromPEM` — key-material decoding is a library concern, not the CLI's.
 - `pkg/cli/` — `Command()` returns a `urfave/cli` v3 `*cli.Command` (mountable as
-  a subcommand). SDK client construction, alias normalisation (key *identifier*
-  only), and exit-code mapping live here, not in the library.
+  a subcommand). SDK client construction, target selection (`--key-id` /
+  `--key-arn`), and exit-code mapping live here, not in the library.
 - Wrapping algorithm is fixed at `RSA_AES_KEY_WRAP_SHA_256` + `RSA_4096` — not
   configurable. No integration tests against real AWS live in the repo.
 

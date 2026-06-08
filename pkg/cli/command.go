@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -55,12 +54,11 @@ func Command() *clipkg.Command {
 				Flags: [][]clipkg.Flag{
 					{&clipkg.StringFlag{Name: "key-id", Usage: "the target KMS key ID"}},
 					{&clipkg.StringFlag{Name: "key-arn", Usage: "the target KMS key ARN"}},
-					{&clipkg.StringFlag{Name: "alias", Usage: "the target KMS key alias (alias/ prefix prepended if absent)"}},
 				},
 			},
 		},
 		Action: func(ctx context.Context, cmd *clipkg.Command) error {
-			keyID, displayAlias := resolveTarget(cmd)
+			keyID := resolveTarget(cmd)
 
 			// Validate --expires before any AWS call (R18).
 			var expiry time.Time
@@ -89,7 +87,7 @@ func Command() *clipkg.Command {
 				return fmt.Errorf("load AWS config: %w", err)
 			}
 
-			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, displayAlias, pemBytes, expiry, cmd.Bool("json"))
+			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, pemBytes, expiry, cmd.Bool("json"))
 		},
 	}
 }
@@ -107,24 +105,12 @@ func parseExpiry(s string) (time.Time, error) {
 	return t, nil
 }
 
-// normaliseAlias prepends "alias/" if not already present (R10, R11).
-func normaliseAlias(alias string) string {
-	if strings.HasPrefix(alias, "alias/") {
-		return alias
-	}
-	return "alias/" + alias
-}
-
-// resolveTarget returns the resolved KMS key identifier and, when --alias was
-// used, the normalised alias for display. The framework has already enforced
-// exactly one of the three flags is set via MutuallyExclusiveFlags.
-func resolveTarget(cmd *clipkg.Command) (keyID, displayAlias string) {
-	if raw := cmd.String("alias"); raw != "" {
-		normalised := normaliseAlias(raw)
-		return normalised, normalised
-	}
+// resolveTarget returns the KMS key identifier to import into. The framework has
+// already enforced via MutuallyExclusiveFlags that exactly one of --key-id /
+// --key-arn is set.
+func resolveTarget(cmd *clipkg.Command) string {
 	if arn := cmd.String("key-arn"); arn != "" {
-		return arn, ""
+		return arn
 	}
-	return cmd.String("key-id"), ""
+	return cmd.String("key-id")
 }
