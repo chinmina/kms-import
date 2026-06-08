@@ -54,7 +54,7 @@ func TestCommand_NoTargetFlag_Errors(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error when no target flag provided, got nil")
 	}
-	for _, flag := range []string{"--key-id", "--key-arn", "--alias"} {
+	for _, flag := range []string{"key-id", "key-arn", "alias"} {
 		if !strings.Contains(err.Error(), flag) {
 			t.Errorf("error %q does not mention %q", err.Error(), flag)
 		}
@@ -82,8 +82,8 @@ func TestCommand_TwoTargetFlags_Errors(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error when two target flags provided, got nil")
 	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error %q should mention mutual exclusivity", err.Error())
+	if !strings.Contains(err.Error(), "cannot be set along with") {
+		t.Errorf("error %q should indicate flags cannot be combined", err.Error())
 	}
 }
 

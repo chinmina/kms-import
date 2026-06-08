@@ -32,18 +32,6 @@ func Command() *clipkg.Command {
 				Required: true,
 			},
 			&clipkg.StringFlag{
-				Name:  "key-id",
-				Usage: "the target KMS key ID",
-			},
-			&clipkg.StringFlag{
-				Name:  "key-arn",
-				Usage: "the target KMS key ARN",
-			},
-			&clipkg.StringFlag{
-				Name:  "alias",
-				Usage: "the target KMS key alias (alias/ prefix prepended if absent)",
-			},
-			&clipkg.StringFlag{
 				Name:  "profile",
 				Usage: "AWS named profile to use",
 			},
@@ -52,11 +40,18 @@ func Command() *clipkg.Command {
 				Usage: "AWS region to use",
 			},
 		},
+		MutuallyExclusiveFlags: []clipkg.MutuallyExclusiveFlags{
+			{
+				Required: true,
+				Flags: [][]clipkg.Flag{
+					{&clipkg.StringFlag{Name: "key-id", Usage: "the target KMS key ID"}},
+					{&clipkg.StringFlag{Name: "key-arn", Usage: "the target KMS key ARN"}},
+					{&clipkg.StringFlag{Name: "alias", Usage: "the target KMS key alias (alias/ prefix prepended if absent)"}},
+				},
+			},
+		},
 		Action: func(ctx context.Context, cmd *clipkg.Command) error {
-			keyID, err := resolveKeyID(cmd)
-			if err != nil {
-				return err
-			}
+			keyID, displayAlias := resolveTarget(cmd)
 
 			pemBytes, err := os.ReadFile(cmd.String("key-file"))
 			if err != nil {
@@ -76,8 +71,7 @@ func Command() *clipkg.Command {
 				return fmt.Errorf("load AWS config: %w", err)
 			}
 
-			alias := cmd.String("alias")
-			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, alias, pemBytes)
+			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, displayAlias, pemBytes)
 		},
 	}
 }
@@ -90,31 +84,16 @@ func normaliseAlias(alias string) string {
 	return "alias/" + alias
 }
 
-// resolveKeyID returns the normalised key identifier from the mutually-exclusive
-// target flags --key-id, --key-arn, and --alias (R7–R11).
-func resolveKeyID(cmd *clipkg.Command) (string, error) {
-	id, arn, alias := cmd.String("key-id"), cmd.String("key-arn"), cmd.String("alias")
-	n := 0
-	if id != "" {
-		n++
+// resolveTarget returns the resolved KMS key identifier and, when --alias was
+// used, the normalised alias for display. The framework has already enforced
+// exactly one of the three flags is set via MutuallyExclusiveFlags.
+func resolveTarget(cmd *clipkg.Command) (keyID, displayAlias string) {
+	if raw := cmd.String("alias"); raw != "" {
+		normalised := normaliseAlias(raw)
+		return normalised, normalised
 	}
-	if arn != "" {
-		n++
+	if arn := cmd.String("key-arn"); arn != "" {
+		return arn, ""
 	}
-	if alias != "" {
-		n++
-	}
-	if n == 0 {
-		return "", fmt.Errorf("exactly one of --key-id, --key-arn, or --alias must be provided")
-	}
-	if n > 1 {
-		return "", fmt.Errorf("--key-id, --key-arn, and --alias are mutually exclusive: provide exactly one")
-	}
-	if alias != "" {
-		return normaliseAlias(alias), nil
-	}
-	if arn != "" {
-		return arn, nil
-	}
-	return id, nil
+	return cmd.String("key-id"), ""
 }
