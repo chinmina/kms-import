@@ -129,8 +129,8 @@ sequenceDiagram
 1. The repository shall use GoReleaser to build and publish release artifacts to GitHub Releases.
 1. GoReleaser shall produce binaries for at minimum: `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, and `windows/amd64`.
 1. Each release shall include a checksum file covering all release artifacts.
-1. Each release binary shall be signed with Cosign using keyless signing (Sigstore OIDC), producing a signature and certificate for each artifact.
-1. The repository shall include verification instructions in the README documenting how to verify a downloaded binary using Cosign.
+1. Each release artifact shall carry a build-provenance attestation produced with keyless signing (GitHub Actions OIDC via Sigstore), binding each artifact's digest to the source commit and the build workflow.
+1. The repository shall include verification instructions in the README documenting how to verify a downloaded binary's attestation (e.g. `gh attestation verify`).
 
 ### Documentation
 
@@ -171,7 +171,7 @@ The AWS SDK `*kms.Client` satisfies this interface directly.
 
 **Urfave CLI version:** v3.
 
-**GoReleaser:** Standard GoReleaser v2 configuration. Cosign keyless signing is performed in the GoReleaser GitHub Actions workflow using the `sigstore/cosign-installer` action and `cosign sign-blob` against each artifact after build. The checksum file is also signed.
+**GoReleaser + attestations:** Standard GoReleaser v2 configuration builds and publishes the artifacts; signing is done with GitHub artifact attestations rather than GoReleaser's own signing. The release workflow runs `actions/attest` after GoReleaser, passing the GoReleaser checksum file via `subject-checksums` so every artifact is attested by digest in a single SLSA build-provenance statement. Attestations use keyless Sigstore signing from the workflow's OIDC identity and are stored in GitHub's attestations API (verified with `gh attestation verify`); because the attestation is a Sigstore bundle, `cosign` can verify it too. Note this supersedes an earlier plan to sign each artifact with `cosign sign-blob` via `sigstore/cosign-installer`.
 
 **Minimum IAM permissions:** The caller needs two things: an IAM policy allowing `kms:GetParametersForImport` and `kms:ImportKeyMaterial` scoped via a `kms:RequestAlias` condition where an alias is the intended target; and a KMS key resource policy statement granting the same two actions to the caller’s principal. These are documented as separate policy fragments in the README, matching the pattern already established in the chinmina-bridge KMS documentation.
 

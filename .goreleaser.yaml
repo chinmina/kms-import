@@ -33,7 +33,11 @@ changelog:
   use: github-native
   sort: asc
 
+# Note: artifacts are NOT signed by GoReleaser. Keyless build-provenance
+# attestations are produced by the `actions/attest` step in the release
+# workflow, which reads the checksum file below (`checksums.txt`) as its
+# subject list so every artifact is attested by digest. Keep the checksum
+# name_template stable — the workflow references `dist/checksums.txt`.
+
 release:
   prerelease: auto
-
-# Cosign keyless signing is added in Phase 9 (release hardening).

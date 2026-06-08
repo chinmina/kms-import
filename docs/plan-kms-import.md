@@ -17,7 +17,7 @@ Durable decisions that apply across all phases. Lock these; don’t relitigate p
 - **Library contract**: returns `(result, error)`; never calls `os.Exit`. Exit-code handling is the CLI’s job only.
 - **Expiry format**: RFC 3339 / ISO 8601 (e.g. `2027-01-01T00:00:00Z`), AWS-CLI-consistent.
 - **Tooling**: **mise** manages toolchain versions (Go, goreleaser, golangci-lint, cosign, **just**). **just** is the command runner — build/test/lint/verify tasks are defined in a `justfile` and invoked as `just <task>`. CI installs the toolchain (including `just`) via `jdx/mise-action`, then runs `just` tasks. GitHub Actions pinned to latest **by commit SHA** (not floating tags).
-- **Release**: GoReleaser v2. Split across two phases — snapshot build in CI (Phase 1, Linux only) and full tagged release with signing (Phase 9). Cosign **keyless** signing (Sigstore OIDC) via `cosign sign-blob` in the GoReleaser GHA workflow.
+- **Release**: GoReleaser v2. Split across two phases — snapshot build in CI (Phase 1, Linux only) and full tagged release with signing (Phase 9). Signing is via **GitHub artifact attestations** (`actions/attest`, keyless Sigstore OIDC) run after GoReleaser, not GoReleaser's own signing. *(Originally planned as `cosign sign-blob`; changed during Phase 9 — see the progress doc.)*
 - **Testing boundary**: no integration tests against real AWS in the repo. Core logic is exercised against a mock `KMSClient`; real-KMS verification is a manual operational smoke.
 - **Template source**: `.github/` workflows, `mise.toml`, `justfile`, and `.goreleaser.yaml` shapes are derived from `jamestelfer/dollop`. That repo was not readable during planning (private/unindexed) — the implementer copies its structure rather than reconstructing from this plan.
 
@@ -421,29 +421,30 @@ Ship verifiable, multi-platform binaries operators can trust. Extends Phase 1’
 - GoReleaser publishes release artifacts to GitHub Releases on tag (R35).
 - Platforms: at minimum linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64 (R36).
 - Checksum file covering all artifacts (R37).
-- Each binary signed with Cosign **keyless** (Sigstore OIDC) → signature + certificate per artifact; checksum file signed too (R38).
-- README documents Cosign verification of a downloaded binary (R39).
+- Each artifact carries a keyless build-provenance attestation (GitHub Actions OIDC via Sigstore), binding its digest to the source commit + build workflow (R38). *(Supersedes the original `cosign sign-blob` plan — see lessons learned.)*
+- README documents attestation verification of a downloaded binary, e.g. `gh attestation verify` (R39).
 
 ### Flex zone
 
 - GoReleaser archive/naming config; changelog config.
-- Exact workflow trigger/permissions wiring (copy dollop’s keyless OIDC setup).
+- Exact workflow trigger/permissions wiring (keyless OIDC setup).
+- Attestation subject selection (`subject-checksums` over the GoReleaser checksum file vs per-archive `subject-path`).
 
 ### End-to-end behaviour to implement
 
-Pushing a version tag triggers GoReleaser: builds all five targets, generates a checksum file, signs each artifact and the checksum file with keyless Cosign, and publishes a GitHub Release with binaries, signatures, and certificates.
+Pushing a version tag triggers GoReleaser: builds all five targets, generates a checksum file, and publishes a GitHub Release. A following `actions/attest` step produces a SLSA build-provenance attestation covering every artifact (by digest, via the checksum file), signed keylessly and stored in GitHub's attestations API.
 
 ### Acceptance criteria
 
 - [ ] `[observable]` A test tag produces a GitHub Release with all five platform binaries.
 - [ ] `[observable]` Checksum file is present and covers every artifact.
-- [ ] `[observable]` Each binary has a Cosign signature + certificate; `cosign verify-blob` succeeds following the README steps.
-- [ ] `[structural]` GHA workflow uses `sigstore/cosign-installer` and keyless `cosign sign-blob`; OIDC permissions set.
+- [ ] `[observable]` Each artifact has a build-provenance attestation; `gh attestation verify <artifact> --repo chinmina/kms-import` succeeds following the README steps.
+- [ ] `[structural]` GHA workflow runs `actions/attest` with `subject-checksums` over the GoReleaser checksum file; OIDC + `attestations` permissions set.
 - [ ] `[structural]` README verification section matches the actual artifact names/commands.
 
 ### Verification
 
-Push a throwaway pre-release tag; inspect the resulting GitHub Release. Download a binary + its signature/cert and run the README’s `cosign verify-blob` command; confirm it passes.
+Push a throwaway pre-release tag; inspect the resulting GitHub Release and the repo Attestations tab. Download a binary and run the README’s `gh attestation verify` command; confirm it passes and prints the source commit + workflow.
 
 ### Regression watchpoints
 
@@ -451,7 +452,7 @@ Push a throwaway pre-release tag; inspect the resulting GitHub Release. Download
 
 ### Replan triggers
 
-- GoReleaser v2 or cosign keyless flow changes break the documented signing path.
+- GoReleaser v2 or the GitHub attestations / Sigstore keyless flow changes break the documented signing path.
 - OIDC trust/permissions can’t be granted in the target org.
 
 -----
