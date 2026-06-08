@@ -30,8 +30,8 @@ Recent syntax compiles here (Go 1.26) — use it where it reads well: `new(expr)
 ## Build and test
 
 Run `just verify` (fmt + build + lint + test) before committing; `just build`
-produces `dist/kms-import`. Toolchain versions are pinned in `mise.toml`; the
-Claude Code web session-start hook installs them.
+produces `dist/kms-import`. Toolchain versions are pinned in `mise.toml` and
+installed with `mise install`.
 
 ## Architecture
 
