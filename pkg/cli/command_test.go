@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	clipkg "github.com/urfave/cli/v3"
 )
@@ -106,6 +107,55 @@ func TestNormaliseAlias(t *testing.T) {
 	}
 }
 
+// TestParseExpiry_Valid checks that a valid RFC 3339 future timestamp parses to
+// the expected time (R17 expiry format).
+func TestParseExpiry_Valid(t *testing.T) {
+	got, err := parseExpiry("2099-01-01T00:00:00Z")
+	if err != nil {
+		t.Fatalf("parseExpiry returned error: %v", err)
+	}
+	want := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Errorf("parseExpiry = %v, want %v", got, want)
+	}
+}
+
+// TestParseExpiry_PastRejected checks that an already-passed expiry date is
+// rejected (R18).
+func TestParseExpiry_PastRejected(t *testing.T) {
+	_, err := parseExpiry("2000-01-01T00:00:00Z")
+	if err == nil {
+		t.Fatal("parseExpiry accepted a past date, want error")
+	}
+}
+
+// TestCommand_PastExpiry_Errors checks that a past --expires date fails fast via
+// the validation path (before any AWS call), not as an unknown flag or AWS error
+// (R18).
+func TestCommand_PastExpiry_Errors(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
+	if err := os.WriteFile(keyFile, pkcs1PEM(t, priv), 0600); err != nil {
+		t.Fatalf("write temp PEM: %v", err)
+	}
+
+	err = Command().Run(context.Background(), []string{
+		"kms-import",
+		"--key-file", keyFile,
+		"--key-id", "abcd-1234",
+		"--expires", "2000-01-01T00:00:00Z",
+	})
+	if err == nil {
+		t.Fatal("want error for past --expires, got nil")
+	}
+	if !strings.Contains(err.Error(), "past") {
+		t.Errorf("error %q should report the expiry is in the past", err.Error())
+	}
+}
+
 func TestCommand_HelpListsFlags(t *testing.T) {
 	cmd := Command()
 
@@ -116,7 +166,7 @@ func TestCommand_HelpListsFlags(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"--key-file", "--key-id", "--key-arn", "--alias", "--profile", "--region"} {
+	for _, want := range []string{"--key-file", "--key-id", "--key-arn", "--alias", "--profile", "--region", "--expires"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help output does not mention %q\n%s", want, help)
 		}

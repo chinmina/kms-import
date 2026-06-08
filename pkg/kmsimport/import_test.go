@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
@@ -125,6 +126,38 @@ func TestImport_Success(t *testing.T) {
 	}
 	if !bytes.Equal(aesPart, wantAES) {
 		t.Errorf("IKM EncryptedKeyMaterial does not round-trip to the key material")
+	}
+}
+
+func TestImport_WithExpiry(t *testing.T) {
+	_, pubDER := newWrappingKey(t)
+	keyARN := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
+	validTo := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := &mockKMS{
+		gpiOutput: &kms.GetParametersForImportOutput{
+			KeyId:       new(keyARN),
+			PublicKey:   pubDER,
+			ImportToken: []byte("token"),
+		},
+		ikmOutput: &kms.ImportKeyMaterialOutput{KeyId: new(keyARN)},
+	}
+
+	_, err := Import(context.Background(),
+		WithClient(m),
+		WithKeyID(keyARN),
+		WithKeyMaterial(mustHex(t, "3082010203040506")),
+		WithExpiry(validTo),
+	)
+	if err != nil {
+		t.Fatalf("Import returned error: %v", err)
+	}
+
+	if got := m.ikmInput.ExpirationModel; got != types.ExpirationModelTypeKeyMaterialExpires {
+		t.Errorf("IKM ExpirationModel = %q, want KEY_MATERIAL_EXPIRES", got)
+	}
+	if got := aws.ToTime(m.ikmInput.ValidTo); !got.Equal(validTo) {
+		t.Errorf("IKM ValidTo = %v, want %v", got, validTo)
 	}
 }
 

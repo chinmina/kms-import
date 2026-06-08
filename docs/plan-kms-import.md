@@ -343,10 +343,10 @@ Support compliance-driven expiry and the recovery path (reimport after expiry/de
 
 ### Acceptance criteria
 
-- [ ] `[observable]` `--expires` with a valid future date sets `KEY_MATERIAL_EXPIRES` + `ValidTo` (verify via `describe-key`).
-- [ ] `[observable]` Past date and malformed date both exit non-zero with **no** AWS call made.
-- [ ] `[observable]` Reimport of the same material into a key with deleted material succeeds with no extra flag.
-- [ ] `[structural]` Expiry validation runs before SDK calls.
+- [x] `[observable]` `--expires` with a valid future date sets `KEY_MATERIAL_EXPIRES` + `ValidTo`. *(unit: `TestImport_WithExpiry`, `TestRunImport_SetsExpiry`; live `describe-key` shares Phase 4's deferred smoke)*
+- [x] `[observable]` Past date and malformed date both exit non-zero with **no** AWS call made. *(`TestParseExpiry_PastRejected`, `TestCommand_PastExpiry_Errors`; validation precedes `LoadDefaultConfig`)*
+- [ ] `[observable]` Reimport of the same material into a key with deleted material succeeds with no extra flag. *(no code needed — same invocation; deferred to real-KMS smoke)*
+- [x] `[structural]` Expiry validation runs before SDK calls.
 
 ### Verification
 

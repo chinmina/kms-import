@@ -10,8 +10,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 )
 
 // pkcs1PEM returns a PKCS#1 ("BEGIN RSA PRIVATE KEY") PEM encoding of priv,
@@ -69,13 +72,50 @@ func TestRunImport_AliasInConfirmation(t *testing.T) {
 	alias := "alias/my-app-key"
 
 	var out bytes.Buffer
-	if err := runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, alias, pkcs1PEM(t, priv)); err != nil {
+	if err := runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, alias, pkcs1PEM(t, priv), time.Time{}); err != nil {
 		t.Fatalf("runImport returned error: %v", err)
 	}
 
 	got := out.String()
 	if !strings.Contains(got, alias) {
 		t.Errorf("confirmation %q does not contain alias %q", got, alias)
+	}
+}
+
+// recordingKMS wraps fakeKMS to additionally capture the ImportKeyMaterial
+// input, so tests can assert on the expiry fields runImport forwards through the
+// library.
+type recordingKMS struct {
+	fakeKMS
+	ikmInput *kms.ImportKeyMaterialInput
+}
+
+func (r *recordingKMS) ImportKeyMaterial(ctx context.Context, in *kms.ImportKeyMaterialInput, optFns ...func(*kms.Options)) (*kms.ImportKeyMaterialOutput, error) {
+	r.ikmInput = in
+	return r.fakeKMS.ImportKeyMaterial(ctx, in, optFns...)
+}
+
+// TestRunImport_SetsExpiry checks that a non-zero expiry passed to runImport
+// reaches the import as KEY_MATERIAL_EXPIRES with ValidTo set (R17).
+func TestRunImport_SetsExpiry(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
+	expiry := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	rec := &recordingKMS{fakeKMS: fakeKMS{keyID: keyID}}
+	var out bytes.Buffer
+	if err := runImport(context.Background(), &out, rec, keyID, "", pkcs1PEM(t, priv), expiry); err != nil {
+		t.Fatalf("runImport returned error: %v", err)
+	}
+
+	if got := rec.ikmInput.ExpirationModel; got != types.ExpirationModelTypeKeyMaterialExpires {
+		t.Errorf("ExpirationModel = %q, want KEY_MATERIAL_EXPIRES", got)
+	}
+	if got := aws.ToTime(rec.ikmInput.ValidTo); !got.Equal(expiry) {
+		t.Errorf("ValidTo = %v, want %v", got, expiry)
 	}
 }
 
@@ -87,7 +127,7 @@ func TestRunImport_PrintsConfirmation(t *testing.T) {
 	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
 
 	var out bytes.Buffer
-	err = runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, "", pkcs1PEM(t, priv))
+	err = runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, "", pkcs1PEM(t, priv), time.Time{})
 	if err != nil {
 		t.Fatalf("runImport returned error: %v", err)
 	}
