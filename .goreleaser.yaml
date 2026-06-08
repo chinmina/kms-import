@@ -33,7 +33,23 @@ changelog:
   use: github-native
   sort: asc
 
+# Keyless Cosign signing (Sigstore OIDC). Each uploadable artifact — every
+# platform archive and the checksum file — is signed with `cosign sign-blob`,
+# producing a Sigstore bundle (signature + certificate) alongside it. The
+# ci-only.sh wrapper no-ops outside CI so snapshot/local builds don't attempt
+# to acquire an OIDC token; real signing happens in the release workflow.
+signs:
+  - id: cosign
+    cmd: ./ci-only.sh
+    signature: "${artifact}.cosign.bundle"
+    args:
+      - "cosign"
+      - "sign-blob"
+      - "${artifact}"
+      - "--bundle=${signature}"
+      - "--yes"
+    artifacts: all
+    output: true
+
 release:
   prerelease: auto
-
-# Cosign keyless signing is added in Phase 9 (release hardening).
