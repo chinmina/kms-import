@@ -19,6 +19,8 @@ profile.cov
 
 # Build output (goreleaser / just build)
 dist/
+# Stray root-level binary from a bare `go build ./cmd/kms-import`
+/kms-import
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
