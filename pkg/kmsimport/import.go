@@ -14,6 +14,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
@@ -52,6 +53,7 @@ type options struct {
 	client      KMSClient
 	keyID       string
 	keyMaterial []byte
+	expiry      time.Time
 }
 
 // WithClient injects the KMS client used to perform the import.
@@ -69,6 +71,13 @@ func WithKeyID(id string) Option {
 // WithKeyMaterial sets the private key material to import, as PKCS#8 DER.
 func WithKeyMaterial(der []byte) Option {
 	return func(o *options) { o.keyMaterial = der }
+}
+
+// WithExpiry sets an expiry time for the imported key material. When provided,
+// the import uses ExpirationModel KEY_MATERIAL_EXPIRES with ValidTo set to t.
+// Absent this option the material does not expire.
+func WithExpiry(t time.Time) Option {
+	return func(o *options) { o.expiry = t }
 }
 
 // Import imports key material into the target KMS key. It fetches the wrapping
@@ -113,12 +122,18 @@ func Import(ctx context.Context, opts ...Option) (Result, error) {
 		return Result{}, fmt.Errorf("wrap key material: %w", err)
 	}
 
-	out, err := o.client.ImportKeyMaterial(ctx, &kms.ImportKeyMaterialInput{
+	ikmInput := &kms.ImportKeyMaterialInput{
 		KeyId:                new(o.keyID),
 		ImportToken:          params.ImportToken,
 		EncryptedKeyMaterial: encrypted,
 		ExpirationModel:      types.ExpirationModelTypeKeyMaterialDoesNotExpire,
-	})
+	}
+	if !o.expiry.IsZero() {
+		ikmInput.ExpirationModel = types.ExpirationModelTypeKeyMaterialExpires
+		ikmInput.ValidTo = aws.Time(o.expiry)
+	}
+
+	out, err := o.client.ImportKeyMaterial(ctx, ikmInput)
 	if err != nil {
 		return Result{}, fmt.Errorf("import key material: %w", err)
 	}

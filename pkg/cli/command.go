@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
@@ -39,6 +40,10 @@ func Command() *clipkg.Command {
 				Name:  "region",
 				Usage: "AWS region to use",
 			},
+			&clipkg.StringFlag{
+				Name:  "expires",
+				Usage: "expiry for the imported key material as an RFC 3339 timestamp (e.g. 2027-01-01T00:00:00Z); omit for non-expiring material",
+			},
 		},
 		MutuallyExclusiveFlags: []clipkg.MutuallyExclusiveFlags{
 			{
@@ -52,6 +57,15 @@ func Command() *clipkg.Command {
 		},
 		Action: func(ctx context.Context, cmd *clipkg.Command) error {
 			keyID, displayAlias := resolveTarget(cmd)
+
+			// Validate --expires before any AWS call (R18).
+			var expiry time.Time
+			if e := cmd.String("expires"); e != "" {
+				var err error
+				if expiry, err = parseExpiry(e); err != nil {
+					return err
+				}
+			}
 
 			pemBytes, err := os.ReadFile(cmd.String("key-file"))
 			if err != nil {
@@ -71,9 +85,22 @@ func Command() *clipkg.Command {
 				return fmt.Errorf("load AWS config: %w", err)
 			}
 
-			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, displayAlias, pemBytes)
+			return runImport(ctx, cmd.Writer, kms.NewFromConfig(cfg), keyID, displayAlias, pemBytes, expiry)
 		},
 	}
+}
+
+// parseExpiry parses an RFC 3339 / ISO 8601 timestamp from the --expires flag
+// (R17). It validates the format before any AWS call is made (R18).
+func parseExpiry(s string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid --expires %q: expected RFC 3339 timestamp (e.g. 2027-01-01T00:00:00Z): %w", s, err)
+	}
+	if !t.After(time.Now()) {
+		return time.Time{}, fmt.Errorf("invalid --expires %q: expiry is in the past", s)
+	}
+	return t, nil
 }
 
 // normaliseAlias prepends "alias/" if not already present (R10, R11).
