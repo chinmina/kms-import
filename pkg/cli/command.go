@@ -95,10 +95,14 @@ func normaliseAlias(alias string) string {
 func resolveKeyID(cmd *clipkg.Command) (string, error) {
 	id, arn, alias := cmd.String("key-id"), cmd.String("key-arn"), cmd.String("alias")
 	n := 0
-	for _, v := range []string{id, arn, alias} {
-		if v != "" {
-			n++
-		}
+	if id != "" {
+		n++
+	}
+	if arn != "" {
+		n++
+	}
+	if alias != "" {
+		n++
 	}
 	if n == 0 {
 		return "", fmt.Errorf("exactly one of --key-id, --key-arn, or --alias must be provided")

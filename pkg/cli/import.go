@@ -28,14 +28,12 @@ func runImport(ctx context.Context, out io.Writer, client kmsimport.KMSClient, k
 		return err
 	}
 
+	aliasPrefix := ""
 	if alias != "" {
-		if _, err := fmt.Fprintf(out, "Imported key material — alias: %s, key ID: %s, state: %s\n", alias, res.KeyID, res.KeyState); err != nil {
-			return fmt.Errorf("write confirmation: %w", err)
-		}
-	} else {
-		if _, err := fmt.Fprintf(out, "Imported key material — key ID: %s, state: %s\n", res.KeyID, res.KeyState); err != nil {
-			return fmt.Errorf("write confirmation: %w", err)
-		}
+		aliasPrefix = fmt.Sprintf("alias: %s, ", alias)
+	}
+	if _, err := fmt.Fprintf(out, "Imported key material — %skey ID: %s, state: %s\n", aliasPrefix, res.KeyID, res.KeyState); err != nil {
+		return fmt.Errorf("write confirmation: %w", err)
 	}
 	return nil
 }

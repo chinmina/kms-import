@@ -5,8 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"io/fs"
 	"os"
@@ -16,19 +14,6 @@ import (
 
 	clipkg "github.com/urfave/cli/v3"
 )
-
-// validPEM generates a minimal PKCS#1 RSA-2048 PEM for CLI-level tests.
-func validPEM(t *testing.T) []byte {
-	t.Helper()
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(priv),
-	})
-}
 
 // Command must return a mountable urfave/cli v3 *cli.Command (R33).
 var _ func() *clipkg.Command = Command
@@ -56,12 +41,16 @@ func TestCommand_UnreadableKeyFile(t *testing.T) {
 // TestCommand_NoTargetFlag_Errors checks that omitting all target flags produces
 // an error that names all three options (R9).
 func TestCommand_NoTargetFlag_Errors(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
 	keyFile := filepath.Join(t.TempDir(), "key.pem")
-	if err := os.WriteFile(keyFile, validPEM(t), 0600); err != nil {
+	if err := os.WriteFile(keyFile, pkcs1PEM(t, priv), 0600); err != nil {
 		t.Fatalf("write temp PEM: %v", err)
 	}
 
-	err := Command().Run(context.Background(), []string{"kms-import", "--key-file", keyFile})
+	err = Command().Run(context.Background(), []string{"kms-import", "--key-file", keyFile})
 	if err == nil {
 		t.Fatal("want error when no target flag provided, got nil")
 	}
@@ -75,12 +64,16 @@ func TestCommand_NoTargetFlag_Errors(t *testing.T) {
 // TestCommand_TwoTargetFlags_Errors checks that providing more than one target
 // flag is rejected (R8).
 func TestCommand_TwoTargetFlags_Errors(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
 	keyFile := filepath.Join(t.TempDir(), "key.pem")
-	if err := os.WriteFile(keyFile, validPEM(t), 0600); err != nil {
+	if err := os.WriteFile(keyFile, pkcs1PEM(t, priv), 0600); err != nil {
 		t.Fatalf("write temp PEM: %v", err)
 	}
 
-	err := Command().Run(context.Background(), []string{
+	err = Command().Run(context.Background(), []string{
 		"kms-import",
 		"--key-file", keyFile,
 		"--key-id", "abcd-1234",
