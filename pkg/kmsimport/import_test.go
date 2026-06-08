@@ -163,7 +163,7 @@ func TestImport_WithExpiry(t *testing.T) {
 
 func TestImport_NoClient(t *testing.T) {
 	_, err := Import(context.Background(),
-		WithKeyID("alias/app"),
+		WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 		WithKeyMaterial([]byte{1, 2, 3}),
 	)
 	if !errors.Is(err, ErrNoClient) {
@@ -174,7 +174,7 @@ func TestImport_NoClient(t *testing.T) {
 func TestImport_NoKeyMaterial(t *testing.T) {
 	_, err := Import(context.Background(),
 		WithClient(&mockKMS{}),
-		WithKeyID("alias/app"),
+		WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 	)
 	if !errors.Is(err, ErrNoKeyMaterial) {
 		t.Fatalf("Import error = %v, want ErrNoKeyMaterial", err)
@@ -197,7 +197,7 @@ func TestImport_GPIFailureSurfaces(t *testing.T) {
 
 	_, err := Import(context.Background(),
 		WithClient(m),
-		WithKeyID("alias/app"),
+		WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 		WithKeyMaterial([]byte{1, 2, 3}),
 	)
 	if !errors.Is(err, sentinel) {
@@ -215,7 +215,7 @@ func TestImport_IKMFailureSurfaces(t *testing.T) {
 	sentinel := errors.New("InvalidImportTokenException")
 	m := &mockKMS{
 		gpiOutput: &kms.GetParametersForImportOutput{
-			KeyId:       new("alias/app"),
+			KeyId:       new("1234abcd-12ab-34cd-56ef-1234567890ab"),
 			PublicKey:   pubDER,
 			ImportToken: []byte("token"),
 		},
@@ -224,7 +224,7 @@ func TestImport_IKMFailureSurfaces(t *testing.T) {
 
 	_, err := Import(context.Background(),
 		WithClient(m),
-		WithKeyID("alias/app"),
+		WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 		WithKeyMaterial(mustHex(t, "3082010203040506")),
 	)
 	if !errors.Is(err, sentinel) {
@@ -243,7 +243,7 @@ func TestImport_NonRSAWrappingKey(t *testing.T) {
 	}
 	m := &mockKMS{
 		gpiOutput: &kms.GetParametersForImportOutput{
-			KeyId:       new("alias/app"),
+			KeyId:       new("1234abcd-12ab-34cd-56ef-1234567890ab"),
 			PublicKey:   pubDER,
 			ImportToken: []byte("token"),
 		},
@@ -251,7 +251,7 @@ func TestImport_NonRSAWrappingKey(t *testing.T) {
 
 	_, err = Import(context.Background(),
 		WithClient(m),
-		WithKeyID("alias/app"),
+		WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 		WithKeyMaterial(mustHex(t, "3082010203040506")),
 	)
 	if err == nil {
@@ -272,7 +272,7 @@ func TestImport_NilGPIResponse(t *testing.T) {
 
 	_, err := Import(context.Background(),
 		WithClient(m),
-		WithKeyID("alias/app"),
+		WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 		WithKeyMaterial(mustHex(t, "3082010203040506")),
 	)
 	if err == nil {
@@ -285,7 +285,7 @@ func TestImport_NilIKMResponse(t *testing.T) {
 	// GPI succeeds, but ImportKeyMaterial returns (nil, nil).
 	m := &mockKMS{
 		gpiOutput: &kms.GetParametersForImportOutput{
-			KeyId:       new("alias/app"),
+			KeyId:       new("1234abcd-12ab-34cd-56ef-1234567890ab"),
 			PublicKey:   pubDER,
 			ImportToken: []byte("token"),
 		},
@@ -294,7 +294,7 @@ func TestImport_NilIKMResponse(t *testing.T) {
 
 	_, err := Import(context.Background(),
 		WithClient(m),
-		WithKeyID("alias/app"),
+		WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
 		WithKeyMaterial(mustHex(t, "3082010203040506")),
 	)
 	if err == nil {

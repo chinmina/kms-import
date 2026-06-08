@@ -61,9 +61,9 @@ func WithClient(c KMSClient) Option {
 	return func(o *options) { o.client = c }
 }
 
-// WithKeyID sets the target KMS key identifier. Any valid KMS key identifier is
-// accepted verbatim (key ID, key ARN, or alias); normalisation is the caller's
-// responsibility.
+// WithKeyID sets the target KMS key identifier, passed verbatim to the import
+// APIs. KMS accepts a key ID or key ARN here (the import operations do not
+// resolve aliases).
 func WithKeyID(id string) Option {
 	return func(o *options) { o.keyID = id }
 }

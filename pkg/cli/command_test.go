@@ -55,7 +55,7 @@ func TestCommand_NoTargetFlag_Errors(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error when no target flag provided, got nil")
 	}
-	for _, flag := range []string{"key-id", "key-arn", "alias"} {
+	for _, flag := range []string{"key-id", "key-arn"} {
 		if !strings.Contains(err.Error(), flag) {
 			t.Errorf("error %q does not mention %q", err.Error(), flag)
 		}
@@ -85,25 +85,6 @@ func TestCommand_TwoTargetFlags_Errors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "cannot be set along with") {
 		t.Errorf("error %q should indicate flags cannot be combined", err.Error())
-	}
-}
-
-// TestNormaliseAlias checks that a bare alias name gets "alias/" prepended (R10)
-// and that an already-prefixed alias is used as-is (R11).
-func TestNormaliseAlias(t *testing.T) {
-	for _, tc := range []struct {
-		input string
-		want  string
-	}{
-		{"my-app-key", "alias/my-app-key"},
-		{"alias/my-app-key", "alias/my-app-key"},
-	} {
-		t.Run(tc.input, func(t *testing.T) {
-			got := normaliseAlias(tc.input)
-			if got != tc.want {
-				t.Errorf("normaliseAlias(%q) = %q, want %q", tc.input, got, tc.want)
-			}
-		})
 	}
 }
 
@@ -166,7 +147,7 @@ func TestCommand_HelpListsFlags(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"--key-file", "--key-id", "--key-arn", "--alias", "--profile", "--region", "--expires", "--json"} {
+	for _, want := range []string{"--key-file", "--key-id", "--key-arn", "--profile", "--region", "--expires", "--json"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help output does not mention %q\n%s", want, help)
 		}
