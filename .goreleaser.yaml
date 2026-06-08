@@ -33,24 +33,11 @@ changelog:
   use: github-native
   sort: asc
 
-# Keyless Cosign signing (Sigstore OIDC). Each uploadable artifact — every
-# platform archive and the checksum file — is signed with `cosign sign-blob`,
-# producing a Sigstore bundle (signature + certificate) alongside it. Signing
-# is part of the `release` pipeline only: `goreleaser build` (used by `just
-# build` and the CI snapshot job) never reaches this stage, and real signing
-# runs solely in the tag-triggered release workflow where the OIDC token is
-# available. To dry-run a release locally, pass `--skip=sign`.
-signs:
-  - id: cosign
-    cmd: cosign
-    signature: "${artifact}.cosign.bundle"
-    args:
-      - "sign-blob"
-      - "${artifact}"
-      - "--bundle=${signature}"
-      - "--yes"
-    artifacts: all
-    output: true
+# Note: artifacts are NOT signed by GoReleaser. Keyless build-provenance
+# attestations are produced by the `actions/attest` step in the release
+# workflow, which reads the checksum file below (`checksums.txt`) as its
+# subject list so every artifact is attested by digest. Keep the checksum
+# name_template stable — the workflow references `dist/checksums.txt`.
 
 release:
   prerelease: auto
