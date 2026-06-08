@@ -10,10 +10,10 @@ import (
 
 // runImport decodes the PEM key material via the library, imports it into the
 // target KMS key through the injected client, and writes a human-readable
-// confirmation to out. It is the testable seam shared by the CLI Action: flag
-// parsing and client construction happen above it, the import and output
-// happen here. Key-material decoding is the library's job, not the CLI's.
-func runImport(ctx context.Context, out io.Writer, client kmsimport.KMSClient, keyID string, pemBytes []byte) error {
+// confirmation to out. alias is the normalised alias string (e.g. "alias/my-key")
+// when the caller used --alias, or empty when --key-id/--key-arn was used; it
+// appears in the confirmation when non-empty (R25).
+func runImport(ctx context.Context, out io.Writer, client kmsimport.KMSClient, keyID, alias string, pemBytes []byte) error {
 	der, err := kmsimport.KeyMaterialFromPEM(pemBytes)
 	if err != nil {
 		return err
@@ -28,8 +28,14 @@ func runImport(ctx context.Context, out io.Writer, client kmsimport.KMSClient, k
 		return err
 	}
 
-	if _, err := fmt.Fprintf(out, "Imported key material — key ID: %s, state: %s\n", res.KeyID, res.KeyState); err != nil {
-		return fmt.Errorf("write confirmation: %w", err)
+	if alias != "" {
+		if _, err := fmt.Fprintf(out, "Imported key material — alias: %s, key ID: %s, state: %s\n", alias, res.KeyID, res.KeyState); err != nil {
+			return fmt.Errorf("write confirmation: %w", err)
+		}
+	} else {
+		if _, err := fmt.Fprintf(out, "Imported key material — key ID: %s, state: %s\n", res.KeyID, res.KeyState); err != nil {
+			return fmt.Errorf("write confirmation: %w", err)
+		}
 	}
 	return nil
 }
