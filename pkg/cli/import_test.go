@@ -6,7 +6,9 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -72,7 +74,7 @@ func TestRunImport_AliasInConfirmation(t *testing.T) {
 	alias := "alias/my-app-key"
 
 	var out bytes.Buffer
-	if err := runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, alias, pkcs1PEM(t, priv), time.Time{}); err != nil {
+	if err := runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, alias, pkcs1PEM(t, priv), time.Time{}, false); err != nil {
 		t.Fatalf("runImport returned error: %v", err)
 	}
 
@@ -107,7 +109,7 @@ func TestRunImport_SetsExpiry(t *testing.T) {
 
 	rec := &recordingKMS{fakeKMS: fakeKMS{keyID: keyID}}
 	var out bytes.Buffer
-	if err := runImport(context.Background(), &out, rec, keyID, "", pkcs1PEM(t, priv), expiry); err != nil {
+	if err := runImport(context.Background(), &out, rec, keyID, "", pkcs1PEM(t, priv), expiry, false); err != nil {
 		t.Fatalf("runImport returned error: %v", err)
 	}
 
@@ -119,6 +121,105 @@ func TestRunImport_SetsExpiry(t *testing.T) {
 	}
 }
 
+// failingKMS fails GetParametersForImport, standing in for any AWS API failure.
+type failingKMS struct{}
+
+func (failingKMS) GetParametersForImport(context.Context, *kms.GetParametersForImportInput, ...func(*kms.Options)) (*kms.GetParametersForImportOutput, error) {
+	return nil, errors.New("boom")
+}
+
+func (failingKMS) ImportKeyMaterial(context.Context, *kms.ImportKeyMaterialInput, ...func(*kms.Options)) (*kms.ImportKeyMaterialOutput, error) {
+	return nil, errors.New("boom")
+}
+
+// TestRunImport_FailureWritesNothing checks that an AWS failure surfaces as an
+// error and leaves stdout empty, so quiet/JSON mode never emits partial output
+// (R27, and the R26 suppression guarantee).
+func TestRunImport_FailureWritesNothing(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+
+	var out bytes.Buffer
+	err = runImport(context.Background(), &out, failingKMS{}, "key-id", "", pkcs1PEM(t, priv), time.Time{}, true)
+	if err == nil {
+		t.Fatal("runImport with a failing client succeeded, want error")
+	}
+	if out.Len() != 0 {
+		t.Errorf("stdout should be empty on failure, got %q", out.String())
+	}
+}
+
+// TestRunImport_JSONOutput checks that with jsonOut=true, runImport writes a
+// single valid JSON object carrying the key ID and state, and suppresses the
+// human-readable confirmation line (R26).
+func TestRunImport_JSONOutput(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
+
+	var out bytes.Buffer
+	if err := runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, "", pkcs1PEM(t, priv), time.Time{}, true); err != nil {
+		t.Fatalf("runImport returned error: %v", err)
+	}
+
+	var got struct {
+		KeyID    string `json:"keyId"`
+		KeyState string `json:"keyState"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, out.String())
+	}
+	if got.KeyID != keyID {
+		t.Errorf("keyId = %q, want %q", got.KeyID, keyID)
+	}
+	if got.KeyState != "Enabled" {
+		t.Errorf("keyState = %q, want %q", got.KeyState, "Enabled")
+	}
+	if strings.Contains(out.String(), "Imported key material") {
+		t.Errorf("JSON output should suppress the human-readable line, got %q", out.String())
+	}
+}
+
+// TestRunImport_JSONAliasOnlyWhenUsed checks that the JSON object carries the
+// alias field when --alias was used and omits it otherwise (R26).
+func TestRunImport_JSONAliasOnlyWhenUsed(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
+	alias := "alias/my-app-key"
+
+	decode := func(t *testing.T, b []byte) map[string]any {
+		t.Helper()
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatalf("output is not valid JSON: %v\n%s", err, b)
+		}
+		return m
+	}
+
+	var withAlias bytes.Buffer
+	if err := runImport(context.Background(), &withAlias, fakeKMS{keyID: keyID}, keyID, alias, pkcs1PEM(t, priv), time.Time{}, true); err != nil {
+		t.Fatalf("runImport (alias) returned error: %v", err)
+	}
+	if got := decode(t, withAlias.Bytes())["alias"]; got != alias {
+		t.Errorf("alias field = %v, want %q", got, alias)
+	}
+
+	var noAlias bytes.Buffer
+	if err := runImport(context.Background(), &noAlias, fakeKMS{keyID: keyID}, keyID, "", pkcs1PEM(t, priv), time.Time{}, true); err != nil {
+		t.Fatalf("runImport (no alias) returned error: %v", err)
+	}
+	if _, present := decode(t, noAlias.Bytes())["alias"]; present {
+		t.Errorf("alias field should be absent when --alias was not used, got %s", noAlias.String())
+	}
+}
+
 func TestRunImport_PrintsConfirmation(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -127,7 +228,7 @@ func TestRunImport_PrintsConfirmation(t *testing.T) {
 	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
 
 	var out bytes.Buffer
-	err = runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, "", pkcs1PEM(t, priv), time.Time{})
+	err = runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, "", pkcs1PEM(t, priv), time.Time{}, false)
 	if err != nil {
 		t.Fatalf("runImport returned error: %v", err)
 	}
