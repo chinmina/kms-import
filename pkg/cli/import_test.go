@@ -58,6 +58,27 @@ func (f fakeKMS) ImportKeyMaterial(_ context.Context, _ *kms.ImportKeyMaterialIn
 	return &kms.ImportKeyMaterialOutput{KeyId: &f.keyID}, nil
 }
 
+// TestRunImport_AliasInConfirmation checks that the alias appears in the
+// confirmation when runImport is called with a non-empty alias (R25).
+func TestRunImport_AliasInConfirmation(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
+	alias := "alias/my-app-key"
+
+	var out bytes.Buffer
+	if err := runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, alias, pkcs1PEM(t, priv)); err != nil {
+		t.Fatalf("runImport returned error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, alias) {
+		t.Errorf("confirmation %q does not contain alias %q", got, alias)
+	}
+}
+
 func TestRunImport_PrintsConfirmation(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -66,7 +87,7 @@ func TestRunImport_PrintsConfirmation(t *testing.T) {
 	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
 
 	var out bytes.Buffer
-	err = runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, pkcs1PEM(t, priv))
+	err = runImport(context.Background(), &out, fakeKMS{keyID: keyID}, keyID, "", pkcs1PEM(t, priv))
 	if err != nil {
 		t.Fatalf("runImport returned error: %v", err)
 	}

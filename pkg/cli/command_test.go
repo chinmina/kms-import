@@ -3,8 +3,11 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,6 +38,74 @@ func TestCommand_UnreadableKeyFile(t *testing.T) {
 	}
 }
 
+// TestCommand_NoTargetFlag_Errors checks that omitting all target flags produces
+// an error that names all three options (R9).
+func TestCommand_NoTargetFlag_Errors(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
+	if err := os.WriteFile(keyFile, pkcs1PEM(t, priv), 0600); err != nil {
+		t.Fatalf("write temp PEM: %v", err)
+	}
+
+	err = Command().Run(context.Background(), []string{"kms-import", "--key-file", keyFile})
+	if err == nil {
+		t.Fatal("want error when no target flag provided, got nil")
+	}
+	for _, flag := range []string{"key-id", "key-arn", "alias"} {
+		if !strings.Contains(err.Error(), flag) {
+			t.Errorf("error %q does not mention %q", err.Error(), flag)
+		}
+	}
+}
+
+// TestCommand_TwoTargetFlags_Errors checks that providing more than one target
+// flag is rejected (R8).
+func TestCommand_TwoTargetFlags_Errors(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
+	if err := os.WriteFile(keyFile, pkcs1PEM(t, priv), 0600); err != nil {
+		t.Fatalf("write temp PEM: %v", err)
+	}
+
+	err = Command().Run(context.Background(), []string{
+		"kms-import",
+		"--key-file", keyFile,
+		"--key-id", "abcd-1234",
+		"--key-arn", "arn:aws:kms:us-east-1:111122223333:key/abcd-1234",
+	})
+	if err == nil {
+		t.Fatal("want error when two target flags provided, got nil")
+	}
+	if !strings.Contains(err.Error(), "cannot be set along with") {
+		t.Errorf("error %q should indicate flags cannot be combined", err.Error())
+	}
+}
+
+// TestNormaliseAlias checks that a bare alias name gets "alias/" prepended (R10)
+// and that an already-prefixed alias is used as-is (R11).
+func TestNormaliseAlias(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  string
+	}{
+		{"my-app-key", "alias/my-app-key"},
+		{"alias/my-app-key", "alias/my-app-key"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			got := normaliseAlias(tc.input)
+			if got != tc.want {
+				t.Errorf("normaliseAlias(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCommand_HelpListsFlags(t *testing.T) {
 	cmd := Command()
 
@@ -45,7 +116,7 @@ func TestCommand_HelpListsFlags(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"--key-file", "--key-id"} {
+	for _, want := range []string{"--key-file", "--key-id", "--key-arn", "--alias", "--profile", "--region"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help output does not mention %q\n%s", want, help)
 		}
