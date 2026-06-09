@@ -13,6 +13,7 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    environment: automation
     steps:
       # A GitHub App identity is required, not cosmetic: a tag pushed with the
       # default GITHUB_TOKEN does not trigger other workflows, so the v* tag

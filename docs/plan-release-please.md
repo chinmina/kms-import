@@ -134,8 +134,8 @@ GoReleaser fill the draft release-please created rather than make its own, and
 Push-to-`main`. Job mints an App token (client-id/private-key from secrets) and
 runs `googleapis/release-please-action` (pinned by SHA) with that token. Pin the
 action by commit SHA per repo convention. Optionally expose `release_created` /
-`tag_name` outputs for observability. `environment: automation` (as dollop) if a
-protected environment guards the secrets.
+`tag_name` outputs for observability. Runs in the `automation` environment
+(as dollop), which holds/guards the App secrets.
 
 ### Change: `.github/workflows/release.yml`
 Keep the `on: push: tags: ['v*']` trigger and the existing checkout/setup/mise/
@@ -193,8 +193,11 @@ Seed at `0.0.0` (or chosen initial version) since no prior release exists.
   the repo; its Client ID and a private key stored as secrets
   (`RELEASE_PLEASE_CLIENT_ID`, `RELEASE_PLEASE_APP_PRIVATE_KEY`), matching the
   names dollop uses. (Owner action; document it.)
-- If using `environment: automation`/`release`, create those environments and
-  scope the secrets to them.
+- **Required environments** (the jobs declare `environment:`, so they will not
+  start until these exist): `automation` for `release-please.yml` and `release`
+  for `release.yml`. Scope the App secrets to `automation`; `release` is the gate
+  for the signing/publish job (add required reviewers / branch filters here if
+  desired). The App secrets must be reachable from the `automation` environment.
 - Branch protection on `main` must allow the App to merge/commit as needed.
 
 ## Why a GitHub App token is required
