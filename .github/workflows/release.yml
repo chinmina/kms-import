@@ -1,8 +1,13 @@
+# Second half of the release pipeline. release-please.yml (on push to main) opens
+# the Release PR and, on merge, creates a draft release and pushes its v* tag;
+# that tag triggers this workflow, which builds the artifacts, attests them, and
+# only then publishes the draft. Splitting it this way enforces build → attest →
+# publish: nothing is downloadable before its provenance attestation exists.
 name: Release
 
 on:
   push:
-    # version tags trigger a full signed release
+    # the v* tag pushed by release-please.yml triggers a full signed release
     tags:
       - "v*"
 
