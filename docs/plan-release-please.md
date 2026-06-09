@@ -60,51 +60,68 @@ binary must not be downloadable from the Release until its provenance
 attestation has been recorded. Two release-please behaviours make this harder
 than the current tag flow:
 
-1. **release-please creates the GitHub Release, and it is published immediately
-   on PR merge** — before any binary is built. If GoReleaser then uploads assets
-   and we attest afterward (today's order: `release --clean` → `attest`), there
-   is a window where attested-by-policy binaries are publicly downloadable with
-   no attestation on file. That violates R38's intent.
+1. **By default release-please publishes the GitHub Release immediately on PR
+   merge** — before any binary is built. If GoReleaser then uploads assets and we
+   attest afterward (today's order: `release --clean` → `attest`), there is a
+   window where attested-by-policy binaries are publicly downloadable with no
+   attestation on file. That violates R38's intent.
 
-2. **A *draft* release does not create a real git tag.** The obvious fix —
-   "make release-please create a draft, build, attest, then publish" — fails in a
-   two-workflow split: GitHub stores a draft release's tag only inside the
-   release object, so no `refs/tags/v*` exists, so a `on: push: tags` workflow
-   never fires and GoReleaser has no tag to derive the version from. Draft-first
-   only works if the build job is chained in the *same* run (see Option B).
+2. **A plain *draft* release does not create a real git tag.** GitHub stores a
+   draft release's tag only inside the release object, so no `refs/tags/v*`
+   exists, a `on: push: tags` workflow never fires, and GoReleaser has no tag to
+   derive the version from. This is the trap that makes "just use a draft" look
+   unworkable in a two-workflow split — but release-please has a purpose-built
+   escape hatch (below).
 
-### Resolution
+### Resolution — defer publishing with a draft release + forced tag
 
-Let release-please create a **published** release + tag (so the tag exists), but
-change GoReleaser so it **does not upload**, attest, then upload as the final
-step:
+release-please should **create the Release as a draft and not publish it**,
+deferring publication to the end of the build. The schema gives us exactly the
+two knobs needed (per-package in `release-please-config.json`):
+
+- `"draft": true` — create the GitHub Release in draft mode (not public; draft
+  assets are visible only to write-access users).
+- `"force-tag-creation": true` — *"Force the creation of a Git tag for the
+  release... particularly useful when `draft` is enabled, because GitHub does
+  not create a Git tag for draft releases until they are published."* This
+  defeats gotcha #2: the `v*` tag is pushed even though the Release stays draft,
+  so `release.yml` still fires.
+
+> Note: `"skip-github-release": true` is **not** the right tool here. Its schema
+> warning — *"Release-Please still requires releases to be tagged, so this option
+> should only be used if you have existing infrastructure to tag these releases"*
+> — means it suppresses the tag too, breaking the trigger. Draft + force-tag is
+> the supported way to "create the tag now, publish the release later."
+
+GoReleaser then targets that existing draft and the final step publishes it:
 
 ```
-goreleaser release --clean --skip=publish   # build archives + dist/checksums.txt, NO upload
-actions/attest  subject-checksums=dist/checksums.txt   # provenance recorded first
-gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --clobber  # publish assets last
+goreleaser release --clean   # release.draft: true + use_existing_draft: true + mode: keep-existing
+actions/attest subject-checksums=dist/checksums.txt   # provenance recorded first
+gh release edit "$TAG" --draft=false                  # publish last, after attestation
 ```
 
-`--skip=publish` makes GoReleaser produce `dist/` (archives + `checksums.txt`)
-without touching the GitHub Release, so it no longer fights release-please over
-the release body. Attestation runs over the checksum file (attesting every
-artifact by digest, order-independent of the release). Only then are the binaries
-attached. The Release page may briefly show source-zips only — acceptable; what
-matters is that no *attested* binary is downloadable before its attestation
-exists.
+Because the Release (page *and* assets) stays a draft until the final `gh
+release edit`, **nothing is publicly downloadable until after the attestation is
+recorded** — a strictly cleaner build → attest → publish than uploading assets to
+an already-public release. `use_existing_draft` (GoReleaser v2.5+) makes
+GoReleaser fill the draft release-please created rather than make its own, and
+`mode: keep-existing` preserves release-please's changelog body.
 
 ## Design decisions
 
 1. **Mirror dollop's two-workflow shape** (`release-please.yml` push-to-main +
    `release.yml` tag-triggered). Faithful to the example and keeps the release
    build isolated. (Option B below is the single-workflow alternative.)
-2. **release-please creates a published release + tag.** Draft-first is rejected
-   because of the draft/tag gotcha above.
-3. **GoReleaser builds but does not publish** (`--skip=publish`); assets uploaded
-   via `gh release upload` after attestation.
+2. **release-please creates a *draft* release + a forced tag** (`draft: true` +
+   `force-tag-creation: true`); publication is deferred. The draft/tag gotcha is
+   handled by `force-tag-creation`, not avoided.
+3. **GoReleaser fills the existing draft** (`release.draft: true`,
+   `use_existing_draft: true`, `mode: keep-existing`); a final
+   `gh release edit --draft=false` publishes only after attestation.
 4. **release-please owns the changelog;** drop `changelog.use: github-native`
-   from `.goreleaser.yaml` to avoid two changelog sources (with `--skip=publish`
-   GoReleaser won't post notes anyway, but remove it to be unambiguous).
+   from `.goreleaser.yaml`. `mode: keep-existing` ensures GoReleaser does not
+   overwrite release-please's release notes.
 5. **`release-type: simple`,** root package, no `extra-files`. Version is stamped
    from the tag via existing ldflags; there is no in-source version constant to
    bump, so no extra files to manage (unlike dollop's `flake.nix`).
@@ -122,12 +139,12 @@ protected environment guards the secrets.
 
 ### Change: `.github/workflows/release.yml`
 Keep the `on: push: tags: ['v*']` trigger and the existing checkout/setup/mise/
-goreleaser scaffold. Three edits:
-- GoReleaser args → `release --clean --skip=publish`.
+goreleaser scaffold. Edits:
+- GoReleaser args stay `release --clean` (it now targets the existing draft).
 - Keep the existing `actions/attest` step (`subject-checksums: dist/checksums.txt`)
   **after** GoReleaser.
-- Add a final step: `gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz
-  dist/*.zip dist/checksums.txt --clobber` (`GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`).
+- Add a final publish step: `gh release edit "${GITHUB_REF_NAME}" --draft=false`
+  (`GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`).
 - Permissions stay `contents: write`, `id-token: write`, `attestations: write`,
   `artifact-metadata: write` (already present — this is exactly what dollop lacks).
 
@@ -136,11 +153,18 @@ goreleaser scaffold. Three edits:
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "simple",
-  "packages": { ".": {} }
+  "packages": {
+    ".": {
+      "draft": true,
+      "force-tag-creation": true
+    }
+  }
 }
 ```
-Consider `"initial-version": "0.1.0"` (or `"bootstrap-sha"`) so the first release
-starts pre-1.0 rather than release-please's default `1.0.0`.
+`draft` + `force-tag-creation` are the crux: the Release is created unpublished
+but the `v*` tag is still pushed (so `release.yml` fires). Consider
+`"initial-version": "0.1.0"` (or `"bootstrap-sha"`) so the first release starts
+pre-1.0 rather than release-please's default `1.0.0`.
 
 ### New: `.release-please-manifest.json`
 ```json
@@ -150,9 +174,12 @@ Seed at `0.0.0` (or chosen initial version) since no prior release exists.
 
 ### Change: `.goreleaser.yaml`
 - Remove the `changelog:` block (release-please owns the changelog).
+- Set `release.draft: true`, `release.use_existing_draft: true`, and
+  `release.mode: keep-existing` so GoReleaser fills the draft release-please
+  created without overwriting its notes or publishing it.
 - Leave `release.prerelease: auto`, `checksum.name_template: checksums.txt`
-  (the attest step + upload step both depend on `dist/checksums.txt`), builds,
-  and archives unchanged.
+  (the attest step depends on `dist/checksums.txt`), builds, and archives
+  unchanged.
 
 ### Change: `README` / `docs`
 - Update the release/verification docs: releases are cut by merging the Release
@@ -184,25 +211,27 @@ most common reason "the release workflow never ran."
 1. Conventional-commit PRs merge to `main`; `ci.yml` runs as today.
 2. `release-please.yml` opens/updates a **Release PR** (version bump + changelog).
 3. Maintainer merges the Release PR.
-4. release-please (App-token identity) creates the **published GitHub Release**
-   and pushes the **`vX.Y.Z` tag**.
+4. release-please (App-token identity) creates a **draft GitHub Release** and
+   pushes the **`vX.Y.Z` tag** (`force-tag-creation`). Nothing is public yet.
 5. The tag triggers `release.yml`: GoReleaser builds all five targets +
-   `checksums.txt` with `--skip=publish` (no upload).
+   `checksums.txt` and fills the **existing draft** (`use_existing_draft`), still
+   unpublished.
 6. `actions/attest` records build-provenance for every artifact by digest.
-7. `gh release upload` attaches the binaries + checksums to the Release —
-   binaries become downloadable only now, after attestation. ✅
+7. `gh release edit "$TAG" --draft=false` publishes the Release — binaries become
+   publicly downloadable only now, after attestation. ✅
 
 ## Risks & gotchas
 
-- **Draft/tag gotcha** (covered above) — do not switch release-please to draft in
-  the two-workflow design.
-- **App-token trigger** — without it, step 5 never fires.
-- **Glob expansion in `gh release upload`** — ensure the runner shell expands
-  `dist/*.tar.gz`/`*.zip`; otherwise enumerate from `dist/artifacts.json` or use
-  `goreleaser`'s `--skip=publish` plus a known file list.
-- **`--skip` syntax** — GoReleaser v2 uses `--skip=publish` (comma-separated for
-  multiple); verify against the pinned GoReleaser version in `mise.toml`.
-- **Two changelog sources** — must remove `changelog:` from `.goreleaser.yaml`.
+- **Draft/tag gotcha** — a plain draft creates no git tag; `force-tag-creation`
+  is what makes the tag (and therefore the trigger) appear.
+- **`use_existing_draft` matching** — GoReleaser matches the draft by tag name;
+  requires GoReleaser ≥ v2.5 (verify the pinned version in `mise.toml`).
+- **App-token trigger** — without it, the tag push won't fire `release.yml`
+  (step 5 never runs).
+- **Publish step is the gate** — if `gh release edit --draft=false` is skipped or
+  fails, the release stays an invisible draft. It must run only after attest.
+- **Two changelog sources** — must remove `changelog:` from `.goreleaser.yaml`;
+  `mode: keep-existing` protects release-please's notes.
 - **First release version** — set `initial-version`/manifest deliberately to
   avoid an unintended `1.0.0`.
 
@@ -211,11 +240,12 @@ most common reason "the release workflow never ran."
 Fold both jobs into one push-to-`main` workflow: a `release-please` job whose
 `release_created`/`tag_name` outputs gate a `goreleaser` job
 (`needs:` + `if: needs.release-please.outputs.release_created == 'true'`,
-checkout `ref: <tag_name>`). Advantages: no cross-workflow trigger, so the App
-token becomes optional; and it *could* support a true draft→attest→publish flow
-since the build runs in the same run. Disadvantage: diverges from dollop's
-structure and couples release-please with the heavy build job. Recommend Option A
-(two workflows) for fidelity to the example unless the team prefers B.
+checkout `ref: <tag_name>`). Advantage: no cross-workflow trigger, so the App
+token becomes optional. Disadvantages: diverges from dollop's structure and
+couples release-please with the heavy build job. With the draft + force-tag
+design above, Option A already achieves a clean draft→attest→publish, so the main
+reason to prefer B is dropping the App token. Recommend Option A (two workflows)
+for fidelity to the example unless the team would rather avoid the App.
 
 ## Out of scope
 
