@@ -1,0 +1,33 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+# The release-please action authenticates with a GitHub App token (below), so the
+# default GITHUB_TOKEN needs no permissions here.
+permissions: {}
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    steps:
+      # A GitHub App identity is required, not cosmetic: a tag pushed with the
+      # default GITHUB_TOKEN does not trigger other workflows, so the v* tag
+      # release-please creates would never start release.yml. The App token's
+      # push does trigger it.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ secrets.RELEASE_PLEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+
+      # Opens/updates the Release PR. On merge it creates a *draft* GitHub Release
+      # (release-please-config.json: draft) and force-creates the v* tag
+      # (force-tag-creation) so the draft does not suppress the tag. GoReleaser
+      # then fills the draft and release.yml publishes it after attestation.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}

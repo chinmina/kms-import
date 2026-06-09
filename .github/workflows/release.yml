@@ -51,3 +51,12 @@ jobs:
       - uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-checksums: dist/checksums.txt
+
+      # Publish last. Until now the release-please draft (filled by GoReleaser
+      # above) is unpublished, so its assets are not publicly downloadable. This
+      # is the gate that enforces build → attest → publish: flip the draft off
+      # only after the attestation above has been recorded.
+      - name: Publish release
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

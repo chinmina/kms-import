@@ -29,9 +29,7 @@ archives:
       - goos: windows
         formats: [zip]
 
-changelog:
-  use: github-native
-  sort: asc
+# Changelog and release notes are owned by release-please, not GoReleaser.
 
 # Note: artifacts are NOT signed by GoReleaser. Keyless build-provenance
 # attestations are produced by the `actions/attest` step in the release
@@ -41,3 +39,10 @@ changelog:
 
 release:
   prerelease: auto
+  # release-please creates the GitHub Release as a draft and force-creates the
+  # tag; GoReleaser fills that existing draft (without overwriting its notes) and
+  # leaves it unpublished. release.yml publishes it only after attestation runs,
+  # so no artifact is downloadable before its provenance is recorded.
+  draft: true
+  use_existing_draft: true
+  mode: keep-existing
