@@ -195,9 +195,10 @@ Seed at `0.0.0` (or chosen initial version) since no prior release exists.
   names dollop uses. (Owner action; document it.)
 - **Required environments** (the jobs declare `environment:`, so they will not
   start until these exist): `automation` for `release-please.yml` and `release`
-  for `release.yml`. Scope the App secrets to `automation`; `release` is the gate
-  for the signing/publish job (add required reviewers / branch filters here if
-  desired). The App secrets must be reachable from the `automation` environment.
+  for `release.yml`. **Both** jobs mint the App token, so scope the App secrets
+  (`RELEASE_PLEASE_CLIENT_ID`, `RELEASE_PLEASE_APP_PRIVATE_KEY`) to **both**
+  environments. `release` is also the gate for the signing/publish job (add
+  required reviewers / branch filters here if desired).
 - Branch protection on `main` must allow the App to merge/commit as needed.
 
 ## Why a GitHub App token is required
@@ -208,6 +209,13 @@ created by release-please must trigger `release.yml`, so release-please has to
 push it with a non-`GITHUB_TOKEN` identity — hence the App token. This is the
 mechanism behind dollop's `create-github-app-token` step, and skipping it is the
 most common reason "the release workflow never ran."
+
+`release.yml` mints the App token too, for the same reason applied to its output:
+publishing the release with `GITHUB_TOKEN` would **not** emit a workflow-
+triggering `release: published` event, so any downstream consumer (announce,
+Homebrew bump, container push, …) would be silently skipped. Publishing under the
+App identity keeps that event live. Both GoReleaser's upload and the final
+`gh release edit --draft=false` therefore run on the App token.
 
 ## End-to-end sequence
 
