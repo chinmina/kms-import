@@ -73,25 +73,30 @@ than the current tag flow:
    unworkable in a two-workflow split — but release-please has a purpose-built
    escape hatch (below).
 
-### Resolution — defer publishing with a draft release + forced tag
+### Resolution — defer publishing with a draft release + an explicitly created tag
 
-release-please should **create the Release as a draft and not publish it**,
-deferring publication to the end of the build. The schema gives us exactly the
-two knobs needed (per-package in `release-please-config.json`):
+release-please should **create the Release as a draft and not publish it**
+(`"draft": true`, per-package), deferring publication to the end of the build.
 
-- `"draft": true` — create the GitHub Release in draft mode (not public; draft
-  assets are visible only to write-access users).
-- `"force-tag-creation": true` — *"Force the creation of a Git tag for the
-  release... particularly useful when `draft` is enabled, because GitHub does
-  not create a Git tag for draft releases until they are published."* This
-  defeats gotcha #2: the `v*` tag is pushed even though the Release stays draft,
-  so `release.yml` still fires.
+The remaining problem is gotcha #2: a draft release creates no git tag, so
+`release.yml` (tag-triggered) never fires. The config knob `"force-tag-creation":
+true` is *documented* to force the tag, but **in practice it did not** with
+release-please-action v5.0.0 (a live run produced an untagged draft and no tag
+push). So `release-please.yml` creates the tag itself, immediately after the
+action, gated on `release_created`:
 
-> Note: `"skip-github-release": true` is **not** the right tool here. Its schema
+```
+gh api repos/$GITHUB_REPOSITORY/git/refs \
+  -f ref=refs/tags/${tag_name} -f sha=${sha}   # tag_name/sha from the action outputs
+```
+
+The ref is created with the **App token**, which is what makes the tag push
+trigger `release.yml`. `force-tag-creation` was removed as a no-op.
+
+> Note: `"skip-github-release": true` is **not** an alternative. Its schema
 > warning — *"Release-Please still requires releases to be tagged, so this option
 > should only be used if you have existing infrastructure to tag these releases"*
-> — means it suppresses the tag too, breaking the trigger. Draft + force-tag is
-> the supported way to "create the tag now, publish the release later."
+> — means it suppresses the tag too.
 
 GoReleaser then targets that existing draft and the final step publishes it:
 
@@ -113,9 +118,9 @@ GoReleaser fill the draft release-please created rather than make its own, and
 1. **Mirror dollop's two-workflow shape** (`release-please.yml` push-to-main +
    `release.yml` tag-triggered). Faithful to the example and keeps the release
    build isolated. (Option B below is the single-workflow alternative.)
-2. **release-please creates a *draft* release + a forced tag** (`draft: true` +
-   `force-tag-creation: true`); publication is deferred. The draft/tag gotcha is
-   handled by `force-tag-creation`, not avoided.
+2. **release-please creates a *draft* release** (`draft: true`); publication is
+   deferred. The tag is then created explicitly by a follow-up step in
+   `release-please.yml` (`force-tag-creation` proved to be a no-op here).
 3. **GoReleaser fills the existing draft** (`release.draft: true`,
    `use_existing_draft: true`, `mode: keep-existing`); a final
    `gh release edit --draft=false` publishes only after attestation.
@@ -157,15 +162,15 @@ goreleaser scaffold. Edits:
   "packages": {
     ".": {
       "draft": true,
-      "force-tag-creation": true
+      "initial-version": "0.1.0"
     }
   }
 }
 ```
-`draft` + `force-tag-creation` are the crux: the Release is created unpublished
-but the `v*` tag is still pushed (so `release.yml` fires). Consider
-`"initial-version": "0.1.0"` (or `"bootstrap-sha"`) so the first release starts
-pre-1.0 rather than release-please's default `1.0.0`.
+`draft` keeps the Release unpublished; the `v*` tag is created by the explicit
+`release-please.yml` step (not `force-tag-creation`, which was a no-op here).
+`"initial-version": "0.1.0"` makes the first release start pre-1.0 rather than
+release-please's default `1.0.0`.
 
 ### New: `.release-please-manifest.json`
 ```json
@@ -223,8 +228,9 @@ App identity keeps that event live. Both GoReleaser's upload and the final
 1. Conventional-commit PRs merge to `main`; `ci.yml` runs as today.
 2. `release-please.yml` opens/updates a **Release PR** (version bump + changelog).
 3. Maintainer merges the Release PR.
-4. release-please (App-token identity) creates a **draft GitHub Release** and
-   pushes the **`vX.Y.Z` tag** (`force-tag-creation`). Nothing is public yet.
+4. release-please (App-token identity) creates a **draft GitHub Release**; the
+   follow-up `release-please.yml` step then creates the **`vX.Y.Z` tag** (App
+   token) at the released commit. Nothing is public yet.
 5. The tag triggers `release.yml`: GoReleaser builds all five targets +
    `checksums.txt` and fills the **existing draft** (`use_existing_draft`), still
    unpublished.
@@ -234,8 +240,11 @@ App identity keeps that event live. Both GoReleaser's upload and the final
 
 ## Risks & gotchas
 
-- **Draft/tag gotcha** — a plain draft creates no git tag; `force-tag-creation`
-  is what makes the tag (and therefore the trigger) appear.
+- **Draft/tag gotcha** — a plain draft creates no git tag, and
+  `force-tag-creation` did not create one with release-please-action v5.0.0; the
+  explicit `gh api .../git/refs` step in `release-please.yml` makes the tag (and
+  therefore the trigger) appear. It must use the App token, or the tag push will
+  not trigger `release.yml`.
 - **`use_existing_draft` matching** — GoReleaser matches the draft by tag name;
   requires GoReleaser ≥ v2.5 (verify the pinned version in `mise.toml`).
 - **App-token trigger** — without it, the tag push won't fire `release.yml`
