@@ -77,7 +77,7 @@ func (r *recordingKMS) ImportKeyMaterial(ctx context.Context, in *kms.ImportKeyM
 }
 
 // TestRunImport_SetsExpiry checks that a non-zero expiry passed to runImport
-// reaches the import as KEY_MATERIAL_EXPIRES with ValidTo set (R17).
+// reaches the import as KEY_MATERIAL_EXPIRES with ValidTo set.
 func TestRunImport_SetsExpiry(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -112,8 +112,7 @@ func (failingKMS) ImportKeyMaterial(context.Context, *kms.ImportKeyMaterialInput
 }
 
 // TestRunImport_FailureWritesNothing checks that an AWS failure surfaces as an
-// error and leaves stdout empty, so quiet/JSON mode never emits partial output
-// (R27, and the R26 suppression guarantee).
+// error and leaves stdout empty, so quiet/JSON mode never emits partial output.
 func TestRunImport_FailureWritesNothing(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -132,7 +131,7 @@ func TestRunImport_FailureWritesNothing(t *testing.T) {
 
 // TestRunImport_JSONOutput checks that with jsonOut=true, runImport writes a
 // single valid JSON object carrying the key ID and state, and suppresses the
-// human-readable confirmation line (R26).
+// human-readable confirmation line.
 func TestRunImport_JSONOutput(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

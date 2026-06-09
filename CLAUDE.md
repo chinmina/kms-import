@@ -1,9 +1,10 @@
 # kms-import
 
 CLI tool and Go library that imports a GitHub App private key (PEM) into AWS KMS
-as non-extractable key material. See `docs/prd-kms-import.md` and
-`docs/plan-kms-import.md` for the spec and phased plan;
-`docs/progress-kms-import.md` tracks status.
+as non-extractable key material. The `README.md` is the long-term reference for
+usage, security rationale, IAM, and the rotation workflow; package and function
+doc comments cover the "why" of the implementation (notably the wrapping crypto
+in `pkg/kmsimport/wrap.go`).
 
 ## Authoritative documentation (mandatory)
 

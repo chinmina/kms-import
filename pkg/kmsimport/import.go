@@ -42,7 +42,10 @@ type KMSClient interface {
 type Result struct {
 	// KeyID is the KMS key identifier resolved by the import operation.
 	KeyID string
-	// KeyState is the key state following a successful import (Enabled).
+	// KeyState is the key state following a successful import. It is always
+	// "Enabled": a successful ImportKeyMaterial transitions the key out of
+	// PendingImport, and the two-method KMSClient interface deliberately omits
+	// DescribeKey, so the state is inferred rather than queried.
 	KeyState string
 }
 
@@ -146,6 +149,9 @@ func Import(ctx context.Context, opts ...Option) (Result, error) {
 		keyID = id
 	}
 
+	// A successful ImportKeyMaterial leaves the key Enabled. We report that
+	// directly rather than confirming via DescribeKey, which is outside the
+	// two-method KMSClient interface this library commits to.
 	return Result{
 		KeyID:    keyID,
 		KeyState: string(types.KeyStateEnabled),
