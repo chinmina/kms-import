@@ -19,7 +19,20 @@ jobs:
   goreleaser:
     name: Release
     runs-on: ubuntu-latest
+    environment: release
     steps:
+      # Use the release-please GitHub App identity (not the default GITHUB_TOKEN)
+      # so that publishing the release emits a workflow-triggering
+      # `release: published` event for any downstream consumers.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ secrets.RELEASE_PLEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          # Least privilege: this job only uploads assets to and publishes the
+          # existing release, both of which need contents write only.
+          permission-contents: write
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
@@ -43,7 +56,7 @@ jobs:
           version: ${{ steps.tool-versions.outputs.goreleaser }}
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
       # Build-provenance attestation for every release artifact. The GoReleaser
       # checksum file lists each archive by digest, so one call attests them
@@ -51,3 +64,12 @@ jobs:
       - uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-checksums: dist/checksums.txt
+
+      # Publish last. Until now the release-please draft (filled by GoReleaser
+      # above) is unpublished, so its assets are not publicly downloadable. This
+      # is the gate that enforces build → attest → publish: flip the draft off
+      # only after the attestation above has been recorded.
+      - name: Publish release
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
