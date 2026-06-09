@@ -24,6 +24,10 @@ jobs:
         with:
           client-id: ${{ secrets.RELEASE_PLEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          # Least privilege: release-please only needs to write commits/tags/
+          # releases (contents) and open/update the Release PR (pull-requests).
+          permission-contents: write
+          permission-pull-requests: write
 
       # Opens/updates the Release PR. On merge it creates a *draft* GitHub Release
       # (release-please-config.json: draft) and force-creates the v* tag

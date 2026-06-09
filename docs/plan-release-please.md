@@ -144,7 +144,8 @@ goreleaser scaffold. Edits:
 - Keep the existing `actions/attest` step (`subject-checksums: dist/checksums.txt`)
   **after** GoReleaser.
 - Add a final publish step: `gh release edit "${GITHUB_REF_NAME}" --draft=false`
-  (`GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`).
+  (`GH_TOKEN: ${{ steps.app-token.outputs.token }}` — the App identity, so
+  publishing emits a `release: published` event).
 - Permissions stay `contents: write`, `id-token: write`, `attestations: write`,
   `artifact-metadata: write` (already present — this is exactly what dollop lacks).
 
