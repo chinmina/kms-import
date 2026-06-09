@@ -22,6 +22,12 @@ func wrapKeyMaterial(pub *rsa.PublicKey, keyMaterial []byte) ([]byte, error) {
 	if _, err := rand.Read(aesKey); err != nil {
 		return nil, fmt.Errorf("generate ephemeral AES key: %w", err)
 	}
+	// Wipe the ephemeral AES key once wrapping is done. This is a library that
+	// may be embedded in a long-lived process, so secret bytes can't rely on an
+	// imminent process exit to reclaim them (the CLI's PEM/DER buffers can, by
+	// design). clear is best-effort — it doesn't reach stack/register copies —
+	// but it bounds the lifetime of the key in the heap buffer we control.
+	defer clear(aesKey)
 
 	wrappedMaterial, err := aesKeyWrapPad(aesKey, keyMaterial)
 	if err != nil {
@@ -64,9 +70,12 @@ func aesKeyWrapPad(kek, plaintext []byte) ([]byte, error) {
 	//nolint:gosec // length is bounded above by the MaxUint32 check above.
 	binary.BigEndian.PutUint32(aiv[4:], uint32(len(plaintext)))
 
-	// Zero-pad the plaintext up to an 8-octet boundary.
+	// Zero-pad the plaintext up to an 8-octet boundary. padded is a copy of the
+	// raw key material, so wipe it before returning (the wrapped output is a
+	// separate buffer and is unaffected).
 	padded := make([]byte, ((len(plaintext)+7)/8)*8)
 	copy(padded, plaintext)
+	defer clear(padded)
 
 	// RFC 5649: when the padded plaintext is a single 64-bit block, the wrap
 	// is one AES-ECB encryption of AIV||padded; otherwise run the RFC 3394
