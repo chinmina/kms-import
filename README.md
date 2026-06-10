@@ -25,11 +25,11 @@ a single alias update.
 already exists with `EXTERNAL` origin. Create a compatible key, import your
 GitHub App PEM into it, then throw the PEM away.
 
-1. **Install the binary** (see [Installation](#installation) for releases and
-   verification):
+1. **Install the binary** (see [Installation](#installation) for all the
+   options, including verified release downloads):
 
    ```sh
-   go install github.com/chinmina/kms-import/cmd/kms-import@latest
+   mise use -g github:chinmina/kms-import
    ```
 
 2. **Create a compatible KMS key.** It must have `EXTERNAL` origin (so its
@@ -68,13 +68,64 @@ GitHub App PEM into it, then throw the PEM away.
 
 ## Installation
 
-Download a binary from [GitHub Releases](https://github.com/chinmina/kms-import/releases)
-(see [Verifying releases](#verifying-releases) below), or build from source with
-Go 1.26+:
+Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) are published to
+[GitHub Releases](https://github.com/chinmina/kms-import/releases). Every
+artifact carries a build-provenance attestation — see
+[Verifying releases](#verifying-releases).
+
+<details>
+<summary><strong>mise (recommended)</strong></summary>
+
+[mise](https://mise.jdx.dev/) installs directly from GitHub Releases via its
+[GitHub backend](https://mise.jdx.dev/dev-tools/backends/github.html), verifying
+the artifact's checksum and build-provenance attestation as part of the install:
+
+```sh
+mise use -g github:chinmina/kms-import
+```
+
+Or pin a version for a project in its `mise.toml`:
+
+```toml
+[tools]
+"github:chinmina/kms-import" = "1.0.0"
+```
+
+</details>
+
+<details>
+<summary><strong>Manual download</strong></summary>
+
+Download the archive for your platform from the
+[releases page](https://github.com/chinmina/kms-import/releases), verify its
+provenance, and put the binary on your `PATH`:
+
+```sh
+OS=linux ARCH=amd64   # or darwin/windows, arm64
+curl -fsSLO "https://github.com/chinmina/kms-import/releases/latest/download/kms-import_${OS}_${ARCH}.tar.gz"
+gh attestation verify "kms-import_${OS}_${ARCH}.tar.gz" --repo chinmina/kms-import
+tar -xzf "kms-import_${OS}_${ARCH}.tar.gz" kms-import
+install -m 0755 kms-import ~/.local/bin/
+```
+
+Windows archives are `.zip`. See [Verifying releases](#verifying-releases) for
+what the attestation proves and for checksum-only verification.
+
+</details>
+
+<details>
+<summary><strong>go install</strong></summary>
+
+Build from source with Go 1.26+:
 
 ```sh
 go install github.com/chinmina/kms-import/cmd/kms-import@latest
 ```
+
+Source builds are not stamped with a release version, so `--version` reports
+`dev`.
+
+</details>
 
 ## Usage
 
