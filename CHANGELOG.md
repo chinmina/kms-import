@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/chinmina/kms-import/compare/v1.0.0...v1.1.0) (2026-06-10)
+
+
+### Features
+
+* publish attested install script and document installation methods ([#20](https://github.com/chinmina/kms-import/issues/20)) ([6eb41cf](https://github.com/chinmina/kms-import/commit/6eb41cfaff3f2587db5e7061a0aa264f7a695e84))
+
 ## [1.0.0](https://github.com/chinmina/kms-import/compare/v0.1.0...v1.0.0) (2026-06-10)
 
 
