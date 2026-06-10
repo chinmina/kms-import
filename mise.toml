@@ -3,3 +3,5 @@ go            = "1.26.4"
 golangci-lint = "2.12.2"
 goreleaser    = "2.16.0"
 just          = "1.51.0"
+# generates the release-attached install.sh in the release workflow
+"github:binary-install/binstaller" = "0.12.0"
