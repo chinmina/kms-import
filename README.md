@@ -77,8 +77,10 @@ artifact carries a build-provenance attestation — see
 <summary><strong>mise (recommended)</strong></summary>
 
 [mise](https://mise.jdx.dev/) installs directly from GitHub Releases via its
-[GitHub backend](https://mise.jdx.dev/dev-tools/backends/github.html), verifying
-the artifact's checksum and build-provenance attestation as part of the install:
+[GitHub backend](https://mise.jdx.dev/dev-tools/backends/github.html). It
+verifies the artifact's checksum and, when the
+[`github_attestations` setting](https://mise.jdx.dev/configuration/settings.html#github_attestations)
+is enabled (currently the default), its build-provenance attestation:
 
 ```sh
 mise use -g github:chinmina/kms-import
