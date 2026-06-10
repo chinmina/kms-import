@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0](https://github.com/chinmina/kms-import/compare/v0.1.0...v1.0.0) (2026-06-10)
+
+
+### Bug Fixes
+
+* make CLI help and code comments the durable reference; drop plan docs ([#18](https://github.com/chinmina/kms-import/issues/18)) ([099d832](https://github.com/chinmina/kms-import/commit/099d832a387da4f75d3cd3e49f291aa36e242f0a))
+
 ## 0.1.0 (2026-06-09)
 
 
