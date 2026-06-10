@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/binary-install/binstaller/main/schema/InstallSpec.json
+# binstaller InstallSpec (https://github.com/binary-install/binstaller), derived
+# from .goreleaser.yaml via `binst init --source=goreleaser` — regenerate it if
+# the archive naming or platform matrix there changes. The release workflow
+# embeds the release's checksums into this spec (in its working copy only),
+# generates install.sh from it, and attaches the script to the GitHub Release.
+schema: v1
+name: kms-import
+repo: chinmina/kms-import
+asset:
+  template: ${NAME}_${OS}_${ARCH}${EXT}
+  default_extension: .tar.gz
+  rules:
+  - when:
+      os: windows
+    ext: .zip
+  naming_convention:
+    os: lowercase
+    arch: lowercase
+checksums:
+  algorithm: sha256
+  template: checksums.txt
+supported_platforms:
+- os: darwin
+  arch: amd64
+- os: darwin
+  arch: arm64
+- os: linux
+  arch: amd64
+- os: linux
+  arch: arm64
+- os: windows
+  arch: amd64
+- os: windows
+  arch: arm64

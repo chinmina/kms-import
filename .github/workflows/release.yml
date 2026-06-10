@@ -63,12 +63,38 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
+      # Generate the installer script from the committed binstaller spec,
+      # embedding this release's checksums (in the spec's working copy only) so
+      # the script verifies the archives it downloads without a network
+      # round-trip for the checksum file.
+      - name: Generate install script
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mise install "github:binary-install/binstaller"
+          binst="$(mise where 'github:binary-install/binstaller')/binst"
+          "$binst" embed-checksums --config .config/binstaller.yml \
+            --version "${GITHUB_REF_NAME}" --mode checksum-file --file dist/checksums.txt
+          "$binst" gen --config .config/binstaller.yml -o dist/install.sh
+
       # Build-provenance attestation for every release artifact. The GoReleaser
       # checksum file lists each archive by digest, so one call attests them
       # all; with no predicate inputs this defaults to SLSA build provenance.
       - uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-checksums: dist/checksums.txt
+
+      # The install script is attested separately (it is not in checksums.txt,
+      # which GoReleaser has already uploaded). Verifying the script's
+      # provenance transitively covers the archives via its embedded checksums.
+      - uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-path: dist/install.sh
+
+      - name: Upload install script
+        run: gh release upload "${GITHUB_REF_NAME}" dist/install.sh
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
       # Publish last. Until now the release-please draft (filled by GoReleaser
       # above) is unpublished, so its assets are not publicly downloadable. This
