@@ -7,7 +7,7 @@ name: Release
 
 on:
   push:
-    # the v* tag pushed by release-please.yml triggers a full signed release
+    # Release Please creates a tag to trigger this build
     tags:
       - "v*"
 

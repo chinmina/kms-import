@@ -66,7 +66,7 @@ EXAMPLES:
 		Flags: []clipkg.Flag{
 			&clipkg.StringFlag{
 				Name:     "key-file",
-				Usage:    "path to the PEM-encoded RSA private key (PKCS#1 \"BEGIN RSA PRIVATE KEY\" or PKCS#8 \"BEGIN PRIVATE KEY\")",
+				Usage:    "path to the PEM-encoded RSA private key (in PKCS#1 or PKCS#8 format",
 				Required: true,
 			},
 			&clipkg.StringFlag{
