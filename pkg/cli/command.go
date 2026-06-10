@@ -23,12 +23,50 @@ import (
 // chain.
 func Command() *clipkg.Command {
 	return &clipkg.Command{
-		Name:  "kms-import",
-		Usage: "import a GitHub App private key into AWS KMS",
+		Name:      "kms-import",
+		Usage:     "import a GitHub App private key into AWS KMS",
+		UsageText: "kms-import --key-file <pem> (--key-id <id> | --key-arn <arn>) [--expires <rfc3339>] [--profile <name>] [--region <name>] [--json]",
+		Description: `kms-import pushes a GitHub App RSA private key into an existing AWS KMS key as
+non-extractable key material, so the application can sign GitHub App JWTs with
+the KMS Sign API and the private key never leaves the KMS HSM boundary.
+
+The target KMS key must already exist with EXTERNAL origin (created by your
+infrastructure-as-code). kms-import only imports key material into it; it never
+creates, deletes, or rotates keys. It reads the PEM, converts it to PKCS#8 DER,
+fetches wrapping parameters from KMS, encrypts the material under the returned
+wrapping key, and calls ImportKeyMaterial. The wrapping algorithm is fixed at
+RSA_AES_KEY_WRAP_SHA_256 with an RSA_4096 wrapping key and is not configurable.
+
+Target the key with exactly one of --key-id or --key-arn (mutually exclusive,
+one required). The KMS import API does not accept aliases, so there is no
+--alias flag; for alias-based rotation, import into the new key by ID/ARN, then
+repoint the alias.
+
+Credentials and region resolve through the standard AWS SDK chain (environment,
+shared config/credentials files, IMDS). --profile and --region override the
+corresponding defaults.
+
+By default the imported material does not expire. --expires sets an expiry
+(KEY_MATERIAL_EXPIRES + ValidTo) for organisational compliance; it is not a
+revocation mechanism — to revoke a compromised key, revoke it in GitHub. The
+same invocation performs both the initial import and a reimport after material
+has expired or been deleted; AWS requires a reimport to use the same key
+material as the original.
+
+The importing principal needs kms:GetParametersForImport and
+kms:ImportKeyMaterial in both its IAM policy and the key's resource policy. See
+the README for ready-to-use IAM and key-policy fragments.
+
+EXAMPLES:
+   Import a key, targeting it by ARN:
+     kms-import --key-file app.pem --key-arn arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+
+   Import with an expiry and a named profile, machine-readable output:
+     kms-import --key-file app.pem --key-id 1234abcd-12ab-34cd-56ef-1234567890ab --expires 2027-01-01T00:00:00Z --profile ops --json`,
 		Flags: []clipkg.Flag{
 			&clipkg.StringFlag{
 				Name:     "key-file",
-				Usage:    "path to the PEM-encoded private key file",
+				Usage:    "path to the PEM-encoded RSA private key (in PKCS#1 or PKCS#8 format",
 				Required: true,
 			},
 			&clipkg.StringFlag{
@@ -60,7 +98,8 @@ func Command() *clipkg.Command {
 		Action: func(ctx context.Context, cmd *clipkg.Command) error {
 			keyID := resolveTarget(cmd)
 
-			// Validate --expires before any AWS call (R18).
+			// Validate --expires before any AWS call, so a malformed or
+			// already-passed value fails fast rather than after a round trip.
 			var expiry time.Time
 			if e := cmd.String("expires"); e != "" {
 				var err error
@@ -93,7 +132,8 @@ func Command() *clipkg.Command {
 }
 
 // parseExpiry parses an RFC 3339 / ISO 8601 timestamp from the --expires flag
-// (R17). It validates the format before any AWS call is made (R18).
+// and rejects values that are malformed or not in the future. Callers validate
+// before any AWS call so bad input fails fast.
 func parseExpiry(s string) (time.Time, error) {
 	t, err := time.Parse(time.RFC3339, s)
 	if err != nil {

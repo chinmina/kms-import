@@ -16,7 +16,7 @@ import (
 	clipkg "github.com/urfave/cli/v3"
 )
 
-// Command must return a mountable urfave/cli v3 *cli.Command (R33).
+// Command must return a mountable urfave/cli v3 *cli.Command.
 var _ func() *clipkg.Command = Command
 
 func TestCommand_UnreadableKeyFile(t *testing.T) {
@@ -40,7 +40,7 @@ func TestCommand_UnreadableKeyFile(t *testing.T) {
 }
 
 // TestCommand_NoTargetFlag_Errors checks that omitting all target flags produces
-// an error that names all three options (R9).
+// an error that names the target options.
 func TestCommand_NoTargetFlag_Errors(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestCommand_NoTargetFlag_Errors(t *testing.T) {
 }
 
 // TestCommand_TwoTargetFlags_Errors checks that providing more than one target
-// flag is rejected (R8).
+// flag is rejected.
 func TestCommand_TwoTargetFlags_Errors(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -89,7 +89,7 @@ func TestCommand_TwoTargetFlags_Errors(t *testing.T) {
 }
 
 // TestParseExpiry_Valid checks that a valid RFC 3339 future timestamp parses to
-// the expected time (R17 expiry format).
+// the expected time.
 func TestParseExpiry_Valid(t *testing.T) {
 	got, err := parseExpiry("2099-01-01T00:00:00Z")
 	if err != nil {
@@ -102,7 +102,7 @@ func TestParseExpiry_Valid(t *testing.T) {
 }
 
 // TestParseExpiry_PastRejected checks that an already-passed expiry date is
-// rejected (R18).
+// rejected.
 func TestParseExpiry_PastRejected(t *testing.T) {
 	_, err := parseExpiry("2000-01-01T00:00:00Z")
 	if err == nil {
@@ -111,8 +111,8 @@ func TestParseExpiry_PastRejected(t *testing.T) {
 }
 
 // TestCommand_PastExpiry_Errors checks that a past --expires date fails fast via
-// the validation path (before any AWS call), not as an unknown flag or AWS error
-// (R18).
+// the validation path (before any AWS call), not as an unknown flag or AWS
+// error.
 func TestCommand_PastExpiry_Errors(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

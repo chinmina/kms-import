@@ -13,7 +13,7 @@ import (
 // runImport decodes the PEM key material via the library, imports it into the
 // target KMS key through the injected client, and writes a human-readable
 // confirmation to out. A non-zero expiry sets the imported material to expire at
-// that time (R17); the zero value leaves it non-expiring.
+// that time; the zero value leaves it non-expiring.
 func runImport(ctx context.Context, out io.Writer, client kmsimport.KMSClient, keyID string, pemBytes []byte, expiry time.Time, jsonOut bool) error {
 	der, err := kmsimport.KeyMaterialFromPEM(pemBytes)
 	if err != nil {
@@ -44,15 +44,16 @@ func runImport(ctx context.Context, out io.Writer, client kmsimport.KMSClient, k
 	return nil
 }
 
-// importResult is the JSON shape emitted under --json (R26): the resolved key ID
-// and the resulting key state.
+// importResult is the JSON shape emitted under --json: the resolved key ID and
+// the resulting key state. These field names are the documented machine-readable
+// contract — keep them stable.
 type importResult struct {
 	KeyID    string `json:"keyId"`
 	KeyState string `json:"keyState"`
 }
 
-// writeJSON emits the machine-readable import result, suppressing all other
-// output (R26). Encode writes directly to out and appends a trailing newline.
+// writeJSON emits the machine-readable import result as the sole output under
+// --json. Encode writes directly to out and appends a trailing newline.
 func writeJSON(out io.Writer, keyID, keyState string) error {
 	if err := json.NewEncoder(out).Encode(importResult{KeyID: keyID, KeyState: keyState}); err != nil {
 		return fmt.Errorf("write JSON result: %w", err)

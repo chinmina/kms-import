@@ -3,18 +3,68 @@
 CLI tool and Go library that imports a GitHub App private key (PEM) into AWS KMS
 as non-extractable key material.
 
-GitHub Apps authenticate by signing JWTs with a private key. Storing that key as
-a plaintext secret means anyone who can read the secret can impersonate the app.
-Importing the key into AWS KMS and delegating signing to the KMS `Sign` API
-removes that risk: the key material never leaves the KMS HSM boundary, access is
-governed by IAM and key policies, every signing call is logged in CloudTrail,
-and rotation is a single alias update. `kms-import` automates the multi-step,
-cryptographically-unforgiving import sequence so this posture is practical to
-adopt.
+A GitHub App's private key is powerful: anyone who holds it can impersonate the
+app indefinitely. Stored as a plaintext secret, that key is a standing
+liability — every place it is copied is another way to lose it.
 
-The key and its alias are assumed to already exist with `EXTERNAL` origin
-(created by your IaC). `kms-import` only pushes key material into them; it does
-not create, delete, or rotate keys.
+Importing the key into AWS KMS removes that attack surface entirely. The key
+material lives inside the KMS HSM, where it cannot be read back out; the
+application signs GitHub App JWTs through the KMS `Sign` API and never touches
+the key itself. The catch is that importing key material into KMS is a fiddly,
+cryptographically-unforgiving sequence — which is why the posture is so often
+skipped. `kms-import` reduces it to a single command.
+
+Once the key material is in KMS, no other copy of it needs to exist anywhere.
+Import it, confirm it, and destroy your local PEM: the canonical private key now
+lives only inside KMS, governed by IAM, audited by CloudTrail, and rotatable by
+a single alias update.
+
+## Quick start
+
+`kms-import` does not create KMS keys; it only pushes key material into one that
+already exists with `EXTERNAL` origin. Create a compatible key, import your
+GitHub App PEM into it, then throw the PEM away.
+
+1. **Install the binary** (see [Installation](#installation) for releases and
+   verification):
+
+   ```sh
+   go install github.com/chinmina/kms-import/cmd/kms-import@latest
+   ```
+
+2. **Create a compatible KMS key.** It must have `EXTERNAL` origin (so its
+   material can be imported), key spec `RSA_2048` (the spec GitHub issues App
+   keys in), and `SIGN_VERIFY` usage (the key signs JWTs; it does not encrypt):
+
+   ```sh
+   aws kms create-key --origin EXTERNAL --key-spec RSA_2048 --key-usage SIGN_VERIFY
+   ```
+
+   This is the bare minimum. In production you would provision the key — and its
+   alias, tags, and resource policy — with CloudFormation or Terraform. Do that,
+   but **import the key material with `kms-import`, not with your IaC.**
+   Terraform's `aws_kms_external_key` takes the raw key material and persists it:
+   "all arguments including the key material will be stored in the raw state as
+   plain text" ([provider docs][tf-state]). That recreates exactly the extra
+   plaintext copy of the private key this approach exists to eliminate.
+   (CloudFormation cannot import external key material at all.)
+
+3. **Import the key material** into the key by ID or ARN:
+
+   ```sh
+   kms-import --key-file app.pem --key-arn arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+   ```
+
+   On success it prints the resolved key ID and resulting state:
+
+   ```text
+   Imported key material — key ID: 1234abcd-12ab-34cd-56ef-1234567890ab, state: Enabled
+   ```
+
+4. **Destroy the local PEM.** The key material now lives only in KMS. Grant the
+   application `kms:Sign` on the key and delete every other copy of the PEM.
+
+[tf-state]: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_external_key
 
 ## Installation
 
@@ -28,17 +78,10 @@ go install github.com/chinmina/kms-import/cmd/kms-import@latest
 
 ## Usage
 
-```sh
-kms-import --key-file app.pem --key-arn arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
-```
-
-Reads the PEM, converts it to PKCS#8 DER, fetches wrapping parameters from KMS,
-encrypts the key material, and calls `ImportKeyMaterial`. On success it prints a
-confirmation with the resolved key ID and resulting state:
-
-```text
-Imported key material — key ID: 1234abcd-12ab-34cd-56ef-1234567890ab, state: Enabled
-```
+The [Quick start](#quick-start) shows a basic invocation. Under the hood
+`kms-import` reads the PEM, converts it to PKCS#8 DER, fetches wrapping
+parameters from KMS, encrypts the key material under the returned wrapping key,
+and calls `ImportKeyMaterial`. The full flag set follows.
 
 ### CLI reference
 
