@@ -37,6 +37,27 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
+      # Close the release PR if a draft release already exists for that version.
+      # release-please tracks "released" by published releases only — a draft
+      # release doesn't count — so after a Release PR merges and creates a draft,
+      # the next push to main reopens the same-version PR. Detect and close it
+      # here before it causes confusion.
+      - name: Close PR if draft release already exists
+        if: ${{ steps.release-please.outputs.release_created != 'true' && steps.release-please.outputs.pr != '' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.release-please.outputs.pr }}
+        run: |
+          PR_TITLE=$(gh pr view "$PR_NUMBER" --json title -q '.title')
+          VERSION=$(echo "$PR_TITLE" | grep -oP '\d+\.\d+\.\d+')
+          if [ -n "$VERSION" ]; then
+            DRAFT=$(gh release view "v${VERSION}" --json isDraft -q '.isDraft' 2>/dev/null || echo "false")
+            if [ "$DRAFT" = "true" ]; then
+              gh pr close "$PR_NUMBER" \
+                --comment "Closing: draft release v${VERSION} already exists and is pending attestation and publication. It will be published automatically once the release workflow completes."
+            fi
+          fi
+
       # Create the git tag for the just-created draft release. GitHub does not
       # materialise a tag for a draft release, and `force-tag-creation` did not
       # produce one with this action version — so without this, release.yml
