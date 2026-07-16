@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/chinmina/kms-import/compare/v1.1.0...v1.1.1) (2026-07-16)
+
+
+### Dependencies
+
+* upgrade Go, modules, and GitHub Actions ([#24](https://github.com/chinmina/kms-import/issues/24)) ([fdb8ca2](https://github.com/chinmina/kms-import/commit/fdb8ca2c64e7ef77f8e620eabed8af28c40ed2f4))
+
 ## [1.1.0](https://github.com/chinmina/kms-import/compare/v1.0.0...v1.1.0) (2026-06-10)
 
 
