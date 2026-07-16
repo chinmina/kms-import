@@ -1,57 +1,29 @@
-name: Release Please
+# chinmina/kms-import — release-please trigger.
+name: release-please
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
-# The release-please action authenticates with a GitHub App token (below), so the
-# default GITHUB_TOKEN needs no permissions here.
+# Default-deny at the workflow level; grant the GITHUB_TOKEN ceiling on the JOB
+# that calls the reusable workflow (secure by default — no other job sees it).
 permissions: {}
 
 jobs:
   release-please:
-    name: Release Please
-    runs-on: ubuntu-latest
-    environment: automation
-    steps:
-      # A GitHub App identity is required, not cosmetic: a tag pushed with the
-      # default GITHUB_TOKEN does not trigger other workflows, so the v* tag
-      # release-please creates would never start release.yml. The App token's
-      # push does trigger it.
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app-token
-        with:
-          client-id: ${{ secrets.RELEASE_PLEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
-          # Least privilege: release-please only needs to write commits/tags/
-          # releases (contents) and open/update the Release PR (pull-requests).
-          permission-contents: write
-          permission-pull-requests: write
-
-      # Opens/updates the Release PR. On merge it creates a *draft* GitHub Release
-      # (release-please-config.json: draft). A draft release does NOT create a git
-      # tag, so the next step creates it explicitly.
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
-        id: release-please
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-
-      # Create the git tag for the just-created draft release. GitHub does not
-      # materialise a tag for a draft release, and `force-tag-creation` did not
-      # produce one with this action version — so without this, release.yml
-      # (triggered on tag push) never runs and the draft is never published.
-      # Creating the ref with the App token (not GITHUB_TOKEN) is what lets the
-      # tag push trigger release.yml; release.yml then fills the draft, attests,
-      # and publishes it.
-      - name: Create tag for the draft release
-        if: ${{ steps.release-please.outputs.release_created == 'true' }}
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          TAG_NAME: ${{ steps.release-please.outputs.tag_name }}
-          TAG_SHA: ${{ steps.release-please.outputs.sha }}
-        run: |
-          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
-            -f "ref=refs/tags/${TAG_NAME}" \
-            -f "sha=${TAG_SHA}"
-
+    # Caller permissions are a CEILING — a reusable workflow can only DOWNGRADE
+    # the GITHUB_TOKEN, never elevate it. Grant at least what the reusable
+    # workflow's job declares, or the run fails at startup.
+    permissions:
+      contents: read
+      # REQUIRED on BOTH token paths: the reusable job declares id-token: write,
+      # so the caller must match it even on the app path (where it is unused).
+      id-token: write
+    uses: chinmina/.github/.github/workflows/release-please.yml@verified-actions # zizmor: ignore[secrets-inherit]
+    with:
+      token-source: app
+    # app path: the RELEASE_PLEASE_* secrets are environment-scoped, and a
+    # reusable-workflow call job cannot declare an `environment:`, so they can
+    # only resolve inside the reusable workflow's env-targeting job — which is
+    # what `inherit` enables. A narrowed map would read empty.
+    secrets: inherit

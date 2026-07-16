@@ -1,106 +1,29 @@
-# Second half of the release pipeline. release-please.yml (on push to main) opens
-# the Release PR and, on merge, creates a draft release and pushes its v* tag;
-# that tag triggers this workflow, which builds the artifacts, attests them, and
-# only then publishes the draft. Splitting it this way enforces build → attest →
-# publish: nothing is downloadable before its provenance attestation exists.
-name: Release
+# chinmina/kms-import — build/attest/publish on the v* tag pushed by release-please.
+# Filename kept as release.yml for future npm trusted-publishing compatibility.
+name: release
 
 on:
   push:
-    # Release Please creates a tag to trigger this build
-    tags:
-      - "v*"
+    tags: ["v*"]
 
-permissions:
-  # publish the GitHub Release and its artifacts
-  contents: write
-  # OIDC token used as the keyless Sigstore signing identity for attestations
-  id-token: write
-  # persist build-provenance attestations to the GitHub attestations API
-  attestations: write
-  artifact-metadata: write
+# Default-deny at the workflow level; grant on the calling JOB (see release-please.yml).
+permissions: {}
 
 jobs:
-  goreleaser:
-    name: Release
-    runs-on: ubuntu-latest
-    environment: release
-    steps:
-      # Use the release-please GitHub App identity (not the default GITHUB_TOKEN)
-      # so that publishing the release emits a workflow-triggering
-      # `release: published` event for any downstream consumers.
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app-token
-        with:
-          client-id: ${{ secrets.RELEASE_PLEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
-          # Least privilege: this job only uploads assets to and publishes the
-          # existing release, both of which need contents write only.
-          permission-contents: write
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          install: false
-
-      - name: Read goreleaser version
-        id: tool-versions
-        run: echo "goreleaser=$(mise current goreleaser)" >> "$GITHUB_OUTPUT"
-
-      - uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7
-        with:
-          version: ${{ steps.tool-versions.outputs.goreleaser }}
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-
-      # Generate the installer script from the committed binstaller spec,
-      # embedding this release's checksums (in the spec's working copy only) so
-      # the script verifies the archives it downloads without a network
-      # round-trip for the checksum file.
-      - name: Generate install script
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          mise install "github:binary-install/binstaller"
-          binst="$(mise where 'github:binary-install/binstaller')/binst"
-          "$binst" embed-checksums --config .config/binstaller.yml \
-            --version "${GITHUB_REF_NAME}" --mode checksum-file --file dist/checksums.txt
-          "$binst" gen --config .config/binstaller.yml -o dist/install.sh
-
-      # Build-provenance attestation for every release artifact. The GoReleaser
-      # checksum file lists each archive by digest, so one call attests them
-      # all; with no predicate inputs this defaults to SLSA build provenance.
-      - uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
-        with:
-          subject-checksums: dist/checksums.txt
-
-      # The install script is attested separately (it is not in checksums.txt,
-      # which GoReleaser has already uploaded). Verifying the script's
-      # provenance transitively covers the archives via its embedded checksums.
-      - uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
-        with:
-          subject-path: dist/install.sh
-
-      - name: Upload install script
-        run: gh release upload "${GITHUB_REF_NAME}" dist/install.sh
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-
-      # Publish last. Until now the release-please draft (filled by GoReleaser
-      # above) is unpublished, so its assets are not publicly downloadable. This
-      # is the gate that enforces build → attest → publish: flip the draft off
-      # only after the attestation above has been recorded.
-      - name: Publish release
-        run: gh release edit "${GITHUB_REF_NAME}" --draft=false
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+  release:
+    # Caller permissions are a CEILING (see release-please.yml). Grant at least
+    # what goreleaser-release.yml's job declares.
+    permissions:
+      contents: write # fill + publish the release, push assets
+      id-token: write # keyless attestation (declared on the app path too)
+      attestations: write # record build attestations
+    uses: chinmina/.github/.github/workflows/goreleaser-release.yml@verified-actions
+    with:
+      token-source: app
+      # Channels: GitHub release + binstaller stay ON (defaults). This repo
+      # ships no formula, no container image, and no npm package.
+      disable-homebrew: true # no Homebrew formula
+      disable-docker-login: true # no container image (login defaults ON, fails fast)
+      disable-npm: true # no npm package (npm defaults ON, opt out explicitly)
+    # No `secrets:` block: the app path WITHOUT homebrew needs none. binstaller
+    # and the GitHub-release channel are keyless / use github.token.
