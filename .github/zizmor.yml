@@ -1,0 +1,12 @@
+# zizmor policy for this consumer of the chinmina/.github shared release kit.
+#
+# First-party kit references (chinmina/*) ride the moving @verified-actions ref
+# by design: the kit's reusable workflows and composite actions advance together
+# on that fast-forward-only branch, and consumers pin to it. So chinmina/* refs
+# are ref-pin; every third-party action must be hash-pinned to a full commit SHA.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        chinmina/*: ref-pin
+        "*": hash-pin
