@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/chinmina/kms-import/compare/v1.1.0...v1.1.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* **docs:** record the [#24](https://github.com/chinmina/kms-import/issues/24) dependency upgrade in the changelog ([#25](https://github.com/chinmina/kms-import/issues/25)) ([6bfd8c8](https://github.com/chinmina/kms-import/commit/6bfd8c82244087ae1a0cc20235ca0175c5e28d27))
+
 ## [1.1.1](https://github.com/chinmina/kms-import/compare/v1.1.0...v1.1.1) (2026-07-16)
 
 
