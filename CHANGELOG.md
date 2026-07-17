@@ -7,9 +7,6 @@
 
 * **docs:** record the [#24](https://github.com/chinmina/kms-import/issues/24) dependency upgrade in the changelog ([#25](https://github.com/chinmina/kms-import/issues/25)) ([6bfd8c8](https://github.com/chinmina/kms-import/commit/6bfd8c82244087ae1a0cc20235ca0175c5e28d27))
 
-## [1.1.1](https://github.com/chinmina/kms-import/compare/v1.1.0...v1.1.1) (2026-07-16)
-
-
 ### Dependencies
 
 * upgrade Go, modules, and GitHub Actions ([#24](https://github.com/chinmina/kms-import/issues/24)) ([fdb8ca2](https://github.com/chinmina/kms-import/commit/fdb8ca2c64e7ef77f8e620eabed8af28c40ed2f4))
