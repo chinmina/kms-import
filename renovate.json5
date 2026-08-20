@@ -1,0 +1,64 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":disableDependencyDashboard",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(fix)",
+    ":semanticCommitScope(deps)"
+  ],
+  "minimumReleaseAge": "5 days",
+  "packageRules": [
+    {
+      "description": "Keep Go module manifests canonical after module updates.",
+      "matchManagers": ["gomod"],
+      "postUpdateOptions": ["gomodTidy"]
+    },
+    {
+      "description": "Update indirect Go modules as well as direct modules.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true
+    },
+    {
+      "description": "Group non-runtime Go module updates, without mixing major and non-major releases.",
+      "matchManagers": ["gomod"],
+      "excludeDepNames": ["go"],
+      "groupName": "Go dependencies",
+      "separateMajorMinor": true,
+      "separateMultipleMajor": true
+    },
+    {
+      "description": "Group GitHub Actions updates, without mixing major and non-major releases.",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "separateMajorMinor": true,
+      "separateMultipleMajor": true
+    },
+    {
+      "description": "Group non-runtime mise updates, without mixing major and non-major releases.",
+      "matchManagers": ["mise"],
+      "excludeDepNames": ["go"],
+      "groupName": "mise",
+      "separateMajorMinor": true,
+      "separateMultipleMajor": true
+    },
+    {
+      "description": "Keep the Go runtime in go.mod and mise.toml aligned, separately from module updates.",
+      "matchManagers": ["gomod", "mise"],
+      "matchDepNames": ["go"],
+      "groupName": "Go runtime",
+      "rangeStrategy": "bump",
+      "separateMajorMinor": true,
+      "separateMultipleMajor": true
+    },
+    {
+      "description": "Keep shared chinmina workflows on their intentionally moving verified-actions ref.",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action"],
+      "matchPackageNames": ["chinmina/**"],
+      "pinDigests": false
+    }
+  ]
+}
