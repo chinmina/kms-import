@@ -94,3 +94,35 @@ jobs:
         with:
           version: ${{ steps.tool-versions.outputs.goreleaser }}
           args: build --snapshot --clean --single-target
+
+  system-test:
+    name: System tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: false
+
+      - name: Read just version
+        id: tool-versions
+        run: echo "just=$(mise current just)" >> "$GITHUB_OUTPUT"
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+        with:
+          just-version: ${{ steps.tool-versions.outputs.just }}
+
+      - name: Run system tests
+        run: just test-system
+
+      - name: Clean up Compose resources
+        if: always()
+        run: just system-cleanup

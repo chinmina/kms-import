@@ -1,0 +1,25 @@
+services:
+  kms:
+    image: nsmithuk/local-kms@sha256:e427105060f1f6c12f9a34474fac9f3bdf768c7e339a0f31e16062ce405edf57
+    networks:
+      - default
+    # No host ports are published; the BATS test reaches KMS via the internal
+    # Compose network at kms:8080.
+
+  bats:
+    image: bats/bats@sha256:e56e7c49087cb766b1ba9c5732b8f5402d289252d52f64e1eefb88269f74125c
+    volumes:
+      - ../../dist:/dist:ro
+      - ./bats:/tests:ro
+    working_dir: /tests
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL_KMS: http://kms:8080
+    command:
+      - /tests
+    networks:
+      - default
+    # Intentionally no depends_on: the test retries kms-create-key until the
+    # KMS API is ready, making that call the real readiness probe.
