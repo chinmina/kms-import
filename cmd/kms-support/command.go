@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
@@ -140,26 +141,34 @@ func createKeyCommand() *clipkg.Command {
 	return &clipkg.Command{
 		Name:      "kms-create-key",
 		Usage:     "create an EXTERNAL RSA_2048 SIGN_VERIFY KMS key",
-		UsageText: "kms-support kms-create-key",
+		UsageText: "kms-support kms-create-key [--arn]",
 		Description: `Create a KMS key suitable for importing RSA-2048 key material.
 
 The created key has origin EXTERNAL, key spec RSA_2048, and key usage
 SIGN_VERIFY. The AWS SDK endpoint, region, and credentials are resolved
-from the environment; no flags are accepted. The new key's identifier is
-written to stdout; diagnostics are written to stderr.`,
+from the environment. By default the new key's identifier is written to
+stdout; use --arn to write the key ARN instead. Diagnostics are written to
+stderr.`,
+		Flags: []clipkg.Flag{
+			&clipkg.BoolFlag{
+				Name:  "arn",
+				Usage: "write the key ARN instead of the key ID",
+			},
+		},
 		Action: func(ctx context.Context, cmd *clipkg.Command) error {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {
 				return fmt.Errorf("load AWS config: %w", err)
 			}
-			return createTargetKey(ctx, kms.NewFromConfig(cfg), cmd.Writer)
+			return createTargetKey(ctx, kms.NewFromConfig(cfg), cmd.Writer, cmd.Bool("arn"))
 		},
 	}
 }
 
 // createTargetKey creates an EXTERNAL/RSA_2048/SIGN_VERIFY KMS key using client
-// and writes the resulting key identifier to w.
-func createTargetKey(ctx context.Context, client createKeyClient, w io.Writer) error {
+// and writes the resulting key identifier to w. When wantARN is true it writes
+// the key ARN instead of the key ID.
+func createTargetKey(ctx context.Context, client createKeyClient, w io.Writer, wantARN bool) error {
 	if client == nil {
 		return fmt.Errorf("no KMS client provided")
 	}
@@ -172,11 +181,21 @@ func createTargetKey(ctx context.Context, client createKeyClient, w io.Writer) e
 	if err != nil {
 		return fmt.Errorf("create KMS key: %w", err)
 	}
-	if out == nil || out.KeyMetadata == nil || out.KeyMetadata.KeyId == nil || *out.KeyMetadata.KeyId == "" {
+	if out == nil || out.KeyMetadata == nil {
+		return fmt.Errorf("create KMS key: missing response metadata")
+	}
+
+	var value string
+	if wantARN {
+		value = aws.ToString(out.KeyMetadata.Arn)
+	} else {
+		value = aws.ToString(out.KeyMetadata.KeyId)
+	}
+	if value == "" {
 		return fmt.Errorf("create KMS key: missing key identifier in response")
 	}
 
-	if _, err := fmt.Fprintln(w, *out.KeyMetadata.KeyId); err != nil {
+	if _, err := fmt.Fprintln(w, value); err != nil {
 		return fmt.Errorf("write key identifier: %w", err)
 	}
 	return nil
