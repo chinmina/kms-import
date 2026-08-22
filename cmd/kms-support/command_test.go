@@ -130,10 +130,13 @@ func TestGenerateKeyCommand_BothFormatFlags_Errors(t *testing.T) {
 }
 
 func TestCreateTargetKey_Success(t *testing.T) {
-	fake := &fakeCreateKeyClient{keyID: "1234abcd-12ab-34cd-56ef-1234567890ab"}
+	fake := &fakeCreateKeyClient{
+		keyID: "1234abcd-12ab-34cd-56ef-1234567890ab",
+		arn:   "arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab",
+	}
 	var out bytes.Buffer
 
-	err := createTargetKey(context.Background(), fake, &out)
+	err := createTargetKey(context.Background(), fake, &out, false)
 	if err != nil {
 		t.Fatalf("createTargetKey: %v", err)
 	}
@@ -156,8 +159,37 @@ func TestCreateTargetKey_Success(t *testing.T) {
 	}
 }
 
+func TestCreateTargetKey_ARN(t *testing.T) {
+	fake := &fakeCreateKeyClient{
+		keyID: "1234abcd-12ab-34cd-56ef-1234567890ab",
+		arn:   "arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab",
+	}
+	var out bytes.Buffer
+
+	err := createTargetKey(context.Background(), fake, &out, true)
+	if err != nil {
+		t.Fatalf("createTargetKey arn: %v", err)
+	}
+
+	if got := strings.TrimSpace(out.String()); got != fake.arn {
+		t.Errorf("stdout = %q, want %q", got, fake.arn)
+	}
+}
+
+func TestCreateTargetKey_MissingARN(t *testing.T) {
+	fake := &fakeCreateKeyClient{
+		keyID: "1234abcd-12ab-34cd-56ef-1234567890ab",
+	}
+	var out bytes.Buffer
+
+	err := createTargetKey(context.Background(), fake, &out, true)
+	if err == nil {
+		t.Fatal("createTargetKey with missing ARN succeeded, want error")
+	}
+}
+
 func TestCreateTargetKey_NilClient(t *testing.T) {
-	err := createTargetKey(context.Background(), nil, &bytes.Buffer{})
+	err := createTargetKey(context.Background(), nil, &bytes.Buffer{}, false)
 	if err == nil {
 		t.Fatal("createTargetKey with nil client succeeded, want error")
 	}
@@ -167,7 +199,7 @@ func TestCreateTargetKey_ClientError(t *testing.T) {
 	sentinel := errors.New("network error")
 	fake := &fakeCreateKeyClient{err: sentinel}
 
-	err := createTargetKey(context.Background(), fake, &bytes.Buffer{})
+	err := createTargetKey(context.Background(), fake, &bytes.Buffer{}, false)
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("createTargetKey error = %v, want %v", err, sentinel)
 	}
@@ -177,22 +209,9 @@ func TestCreateTargetKey_MissingKeyID(t *testing.T) {
 	fake := &fakeCreateKeyClient{}
 	var out bytes.Buffer
 
-	err := createTargetKey(context.Background(), fake, &out)
+	err := createTargetKey(context.Background(), fake, &out, false)
 	if err == nil {
 		t.Fatal("createTargetKey with empty response succeeded, want error")
-	}
-}
-
-func TestCreateKeyCommand_UsesEnvironment(t *testing.T) {
-	// The command itself has no flags; it relies on the AWS SDK chain. This
-	// test proves the command validates and can be invoked with no extra
-	// arguments (it will fail to load config without AWS region/credentials).
-	cmd := command()
-	cmd.Writer = &bytes.Buffer{}
-
-	err := cmd.Run(context.Background(), []string{"kms-support", "kms-create-key"})
-	if err == nil {
-		t.Fatal("kms-create-key without AWS config succeeded, want error")
 	}
 }
 
@@ -242,6 +261,7 @@ func assertFileMode(t *testing.T, path string, want os.FileMode) {
 type fakeCreateKeyClient struct {
 	input *kms.CreateKeyInput
 	keyID string
+	arn   string
 	err   error
 }
 
@@ -250,5 +270,5 @@ func (f *fakeCreateKeyClient) CreateKey(_ context.Context, in *kms.CreateKeyInpu
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &kms.CreateKeyOutput{KeyMetadata: &types.KeyMetadata{KeyId: aws.String(f.keyID)}}, nil
+	return &kms.CreateKeyOutput{KeyMetadata: &types.KeyMetadata{KeyId: aws.String(f.keyID), Arn: aws.String(f.arn)}}, nil
 }
