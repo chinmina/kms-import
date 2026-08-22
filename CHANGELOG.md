@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.2](https://github.com/chinmina/kms-import/compare/v1.1.1...v1.1.2) (2026-08-22)
+
+
+### Bug Fixes
+
+* **deps:** configure renovate ([#28](https://github.com/chinmina/kms-import/issues/28)) ([c832729](https://github.com/chinmina/kms-import/commit/c832729609569d8bfdc06247f9040eb3db412c19))
+* **deps:** update dependency go to v1.26.6 ([#29](https://github.com/chinmina/kms-import/issues/29)) ([fb57da2](https://github.com/chinmina/kms-import/commit/fb57da223f9dbb03084ad6f963aa4c4e9029eef9))
+* **deps:** update github actions ([#30](https://github.com/chinmina/kms-import/issues/30)) ([85663e5](https://github.com/chinmina/kms-import/commit/85663e5da494c6ff010778d628760b8a25611d0f))
+* **deps:** update github actions ([#35](https://github.com/chinmina/kms-import/issues/35)) ([385f253](https://github.com/chinmina/kms-import/commit/385f253998222681b839434d9a57a00b0e191d8e))
+* **deps:** update go dependencies ([#32](https://github.com/chinmina/kms-import/issues/32)) ([5c07a78](https://github.com/chinmina/kms-import/commit/5c07a78652a799734eec5b52b4ac410f64f82192))
+* **deps:** update mise dependencies ([#31](https://github.com/chinmina/kms-import/issues/31)) ([6842240](https://github.com/chinmina/kms-import/commit/6842240250d09546723bdd7f70d526177ca5025e))
+* **deps:** update module github.com/urfave/cli/v3 to v3.11.0 ([#36](https://github.com/chinmina/kms-import/issues/36)) ([78f7073](https://github.com/chinmina/kms-import/commit/78f707339bc9554dc720d948688fc69fb0de72ef))
+
 ## [1.1.1](https://github.com/chinmina/kms-import/compare/v1.1.0...v1.1.1) (2026-07-17)
 
 
