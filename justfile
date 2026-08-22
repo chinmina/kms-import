@@ -1,5 +1,11 @@
-# Run all checks before committing
-verify: fmt build lint test test-system
+# Run all checks before committing.
+# fmt runs first because it mutates source files; the remaining checks are
+# independent reads and run in parallel where the dependency graph allows.
+verify: fmt _parallel-checks
+
+# Internal helper that runs the non-mutating checks in parallel.
+[parallel]
+_parallel-checks: build lint test test-system
 
 # Format all Go source files
 fmt:
