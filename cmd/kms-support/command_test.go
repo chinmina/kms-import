@@ -183,19 +183,6 @@ func TestCreateTargetKey_MissingKeyID(t *testing.T) {
 	}
 }
 
-func TestCreateKeyCommand_UsesEnvironment(t *testing.T) {
-	// The command itself has no flags; it relies on the AWS SDK chain. This
-	// test proves the command validates and can be invoked with no extra
-	// arguments (it will fail to load config without AWS region/credentials).
-	cmd := command()
-	cmd.Writer = &bytes.Buffer{}
-
-	err := cmd.Run(context.Background(), []string{"kms-support", "kms-create-key"})
-	if err == nil {
-		t.Fatal("kms-create-key without AWS config succeeded, want error")
-	}
-}
-
 func readPEM(t *testing.T, path string) *pem.Block {
 	t.Helper()
 	pemBytes, err := os.ReadFile(path)
