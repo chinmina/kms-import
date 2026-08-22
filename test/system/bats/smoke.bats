@@ -104,4 +104,5 @@ create_target_key() {
 
   run "$KMS_IMPORT" --key-file "$TEST_KEY" --key-id "$missing_key_id" --json
   assert_failure
+  assert_output --partial 'NotFoundException'
 }
