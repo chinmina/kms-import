@@ -97,12 +97,6 @@ func generateKey(format, outputPath string) error {
 		return fmt.Errorf("unsupported format %q: want pkcs1 or pkcs8", format)
 	}
 
-	if _, err := os.Stat(outputPath); err == nil {
-		return fmt.Errorf("output file %q already exists", outputPath)
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("check output path %q: %w", outputPath, err)
-	}
-
 	priv, err := rsa.GenerateKey(rand.Reader, rsaKeyBits)
 	if err != nil {
 		return fmt.Errorf("generate RSA key: %w", err)
@@ -114,8 +108,24 @@ func generateKey(format, outputPath string) error {
 	}
 
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: der})
-	if err := os.WriteFile(outputPath, pemBytes, privateKeyFileMode); err != nil {
-		return fmt.Errorf("write private key: %w", err)
+
+	//nolint:gosec // The output path is supplied by the caller; this is a file-creation tool.
+	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, privateKeyFileMode)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("output file %q already exists", outputPath)
+		}
+		return fmt.Errorf("create output file %q: %w", outputPath, err)
+	}
+
+	_, writeErr := f.Write(pemBytes)
+	closeErr := f.Close()
+
+	if writeErr != nil {
+		return fmt.Errorf("write private key: %w", writeErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close private key file: %w", closeErr)
 	}
 
 	return nil
