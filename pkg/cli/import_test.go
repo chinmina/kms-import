@@ -157,7 +157,7 @@ func TestRunImport_JSONOutput(t *testing.T) {
 	if got.KeyState != "Enabled" {
 		t.Errorf("keyState = %q, want %q", got.KeyState, "Enabled")
 	}
-	if strings.Contains(out.String(), "Imported key material") {
+	if strings.Contains(out.String(), "imported successfully") {
 		t.Errorf("JSON output should suppress the human-readable line, got %q", out.String())
 	}
 }
@@ -181,5 +181,25 @@ func TestRunImport_PrintsConfirmation(t *testing.T) {
 	}
 	if !strings.Contains(got, "Enabled") {
 		t.Errorf("confirmation %q does not contain key state %q", got, "Enabled")
+	}
+	if !strings.Contains(got, "Key material imported successfully") {
+		t.Errorf("confirmation %q missing success headline", got)
+	}
+	if !strings.Contains(got, "ready to use for signing") {
+		t.Errorf("confirmation %q missing readiness message", got)
+	}
+}
+
+func TestWriteConfirmation_NotEnabled(t *testing.T) {
+	var out bytes.Buffer
+	if err := writeConfirmation(&out, "key-1", "PendingImport"); err != nil {
+		t.Fatalf("writeConfirmation returned error: %v", err)
+	}
+	got := out.String()
+	if strings.Contains(got, "ready to use for signing") {
+		t.Errorf("non-enabled state should not claim readiness, got %q", got)
+	}
+	if !strings.Contains(got, "PendingImport") {
+		t.Errorf("confirmation %q does not mention the key state", got)
 	}
 }
