@@ -355,6 +355,27 @@ alias, so the application never needs to know the underlying key ID. To rotate
 to a new GitHub App private key:
 
 1. **Create a new KMS key** with `EXTERNAL` origin via your IaC (CDK/Terraform).
+   CloudFormation can express the KMS key shell directly:
+
+   ```yaml
+   GitHubAppKey:
+     Type: AWS::KMS::Key
+     Properties:
+       Origin: EXTERNAL
+       KeySpec: RSA_2048
+       KeyUsage: SIGN_VERIFY
+   ```
+
+   Terraform uses `aws_kms_external_key` for the same `CreateKey` shape:
+
+   ```terraform
+   resource "aws_kms_external_key" "github_app" {
+     description = "RSA-2048 external KMS key for GitHub App signing"
+     key_spec    = "RSA_2048"
+     key_usage   = "SIGN_VERIFY"
+   }
+   ```
+
    Do not point the alias at it yet.
 2. **Import the new private key** into the new key by its ID or ARN:
 

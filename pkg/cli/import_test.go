@@ -86,7 +86,7 @@ func TestRunImport_SetsExpiry(t *testing.T) {
 	keyID := "arn:aws:kms:us-east-1:111122223333:key/abcd-1234"
 	expiry := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	rec := &recordingKMS{fakeKMS: fakeKMS{keyID: keyID}}
+	rec := &recordingKMS{keyID: keyID}
 	var out bytes.Buffer
 	if err := runImport(context.Background(), &out, rec, keyID, pkcs1PEM(t, priv), expiry, false); err != nil {
 		t.Fatalf("runImport returned error: %v", err)
