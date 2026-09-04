@@ -58,7 +58,11 @@ GitHub App PEM into it, then throw the PEM away.
    On success it prints the resolved key ID and resulting state:
 
    ```text
-   Imported key material — key ID: 1234abcd-12ab-34cd-56ef-1234567890ab, state: Enabled
+   ✅ Key material imported successfully
+    - Key ID: 1234abcd-12ab-34cd-56ef-1234567890ab
+    - State:  Enabled
+
+   The key is ready to use for signing.
    ```
 
 4. **Destroy the local PEM.** The key material now lives only in KMS. Grant the

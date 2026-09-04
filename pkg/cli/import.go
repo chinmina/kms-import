@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/chinmina/kms-import/pkg/kmsimport"
 )
 
@@ -38,7 +40,26 @@ func runImport(ctx context.Context, out io.Writer, client kmsimport.KMSClient, k
 		return writeJSON(out, res.KeyID, res.KeyState)
 	}
 
-	if _, err := fmt.Fprintf(out, "Imported key material — key ID: %s, state: %s\n", res.KeyID, res.KeyState); err != nil {
+	return writeConfirmation(out, res.KeyID, res.KeyState)
+}
+
+// writeConfirmation renders the human-readable success summary. When the key
+// ends up Enabled the material is usable immediately, so say so explicitly;
+// any other state means the key still needs attention before it can sign.
+func writeConfirmation(out io.Writer, keyID, keyState string) error {
+	var b strings.Builder
+
+	b.WriteString("✅ Key material imported successfully\n")
+	fmt.Fprintf(&b, " - Key ID: %s\n", keyID)
+	fmt.Fprintf(&b, " - State:  %s\n", keyState)
+
+	if strings.EqualFold(keyState, string(types.KeyStateEnabled)) {
+		b.WriteString("\nThe key is ready to use for signing.\n")
+	} else {
+		fmt.Fprintf(&b, "\nThe key is not enabled (state: %s) and cannot be used for signing yet.\n", keyState)
+	}
+
+	if _, err := io.WriteString(out, b.String()); err != nil {
 		return fmt.Errorf("write confirmation: %w", err)
 	}
 	return nil
