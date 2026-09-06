@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.3](https://github.com/chinmina/kms-import/compare/v1.1.2...v1.1.3) (2026-09-06)
+
+
+### Bug Fixes
+
+* **cli:** clarify import success output ([#41](https://github.com/chinmina/kms-import/issues/41)) ([0a6d2f9](https://github.com/chinmina/kms-import/commit/0a6d2f991d18ad16b3e3ed4c7847ba749d081ff4))
+* **deps:** update dependency go to v1.27.0 ([#38](https://github.com/chinmina/kms-import/issues/38)) ([f6a1990](https://github.com/chinmina/kms-import/commit/f6a199055745253f7d3b6bd815fded991dc4b175))
+* **deps:** update dependency go to v1.27.1 ([#43](https://github.com/chinmina/kms-import/issues/43)) ([fe3f1f9](https://github.com/chinmina/kms-import/commit/fe3f1f912ee660f7824cca2be8b12916878b4686))
+* **deps:** update go dependencies ([#40](https://github.com/chinmina/kms-import/issues/40)) ([287fbbb](https://github.com/chinmina/kms-import/commit/287fbbbacf00f0fc8199025eb408324ef5c08d20))
+* **deps:** update go dependencies ([#42](https://github.com/chinmina/kms-import/issues/42)) ([2dac8e8](https://github.com/chinmina/kms-import/commit/2dac8e822bd90529bcab39dfa8e7cea234bbb12a))
+* **deps:** update jdx/mise-action action to v4.3.0 ([#45](https://github.com/chinmina/kms-import/issues/45)) ([f70607f](https://github.com/chinmina/kms-import/commit/f70607f74788c8af264c83439e5aff79433d6d4f))
+* **deps:** update mise ([#39](https://github.com/chinmina/kms-import/issues/39)) ([f85bb5e](https://github.com/chinmina/kms-import/commit/f85bb5ec9e9ea3ed4ce714c233ca7530e9365221))
+
 ## [1.1.2](https://github.com/chinmina/kms-import/compare/v1.1.1...v1.1.2) (2026-08-22)
 
 
