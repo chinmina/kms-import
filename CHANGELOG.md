@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.4](https://github.com/chinmina/kms-import/compare/v1.1.3...v1.1.4) (2026-09-21)
+
+
+### Bug Fixes
+
+* **deps:** update dependency goreleaser to v2.18.1 ([#49](https://github.com/chinmina/kms-import/issues/49)) ([48d6d5c](https://github.com/chinmina/kms-import/commit/48d6d5c3e987c4f1b41ebc53f65dd538347811d4))
+* **deps:** update go dependencies ([#48](https://github.com/chinmina/kms-import/issues/48)) ([28ded99](https://github.com/chinmina/kms-import/commit/28ded99048b301bc87adcc9044d51e7a71914f21))
+
 ## [1.1.3](https://github.com/chinmina/kms-import/compare/v1.1.2...v1.1.3) (2026-09-06)
 
 
