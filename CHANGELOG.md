@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.5](https://github.com/chinmina/kms-import/compare/v1.1.4...v1.1.5) (2026-10-05)
+
+
+### Bug Fixes
+
+* **deps:** update go dependencies ([#52](https://github.com/chinmina/kms-import/issues/52)) ([d7142e8](https://github.com/chinmina/kms-import/commit/d7142e880b37ec1bf38204f5aed913c28938f54c))
+* **deps:** update jdx/mise-action action to v5 ([#53](https://github.com/chinmina/kms-import/issues/53)) ([b16efb8](https://github.com/chinmina/kms-import/commit/b16efb890f5dc197f96d119d053e8d4756695482))
+* **deps:** update mise packages ([#51](https://github.com/chinmina/kms-import/issues/51)) ([2bfa20a](https://github.com/chinmina/kms-import/commit/2bfa20a5fe0f4f4715c4f97f485ad23266638b9c))
+
 ## [1.1.4](https://github.com/chinmina/kms-import/compare/v1.1.3...v1.1.4) (2026-09-21)
 
 
