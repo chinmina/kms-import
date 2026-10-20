@@ -17,13 +17,14 @@ jobs:
       contents: write # fill + publish the release, push assets
       id-token: write # keyless attestation (declared on the app path too)
       attestations: write # record build attestations
-    uses: chinmina/.github/.github/workflows/goreleaser-release.yml@verified-actions
+    uses: chinmina/.github/.github/workflows/goreleaser-release.yml@verified-actions # zizmor: ignore[secrets-inherit]
     with:
       token-source: app
-      # Channels: GitHub release + binstaller stay ON (defaults). This repo
-      # ships no formula, no container image, and no npm package.
-      disable-homebrew: true # no Homebrew formula
+      # Channels: GitHub release, binstaller, Homebrew and Nix stay ON
+      # (defaults). This repo ships no container image and no npm package.
       disable-docker-login: true # no container image (login defaults ON, fails fast)
       disable-npm: true # no npm package (npm defaults ON, opt out explicitly)
-    # No `secrets:` block: the app path WITHOUT homebrew needs none. binstaller
-    # and the GitHub-release channel are keyless / use github.token.
+    # Homebrew and Nix on the app path mint the package-repo token from the
+    # RELEASE_PLEASE_* App secrets in the `release` environment. Those are
+    # environment-scoped, so a narrowed `secrets:` map would resolve empty.
+    secrets: inherit

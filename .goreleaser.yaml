@@ -29,6 +29,41 @@ archives:
       - goos: windows
         formats: [zip]
 
+homebrew_casks:
+  - name: kms-import
+    repository:
+      owner: chinmina
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}" # set by the wrapper from the minted tap token
+    # release.prerelease: auto only marks the RELEASE as prerelease; this stops
+    # the cask being pushed on a prerelease tag.
+    skip_upload: auto
+    homepage: "https://github.com/chinmina/kms-import"
+    description: "CLI and Go library for importing GitHub App private keys into AWS KMS as non-extractable key material"
+    # Clear the macOS quarantine xattr so the binary runs without a Gatekeeper
+    # prompt after `brew install`. hooks.post.install would emit the deprecated
+    # `postflight` stanza; custom_block carries the supported `postflight_steps`
+    # until goreleaser ships hooks.post.install_steps (goreleaser/goreleaser#6873).
+    # `{{ "{{staged_path}}" }}` escapes Homebrew's `{{staged_path}}` token past
+    # goreleaser's template pass over the rendered cask.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/kms-import"]
+        end
+      end
+
+nix:
+  - name: kms-import
+    repository:
+      owner: chinmina
+      name: nixpkgs
+      token: "{{ .Env.NIX_GITHUB_TOKEN }}" # set by the wrapper from the minted package-repo token
+    skip_upload: auto
+    homepage: "https://github.com/chinmina/kms-import"
+    description: "CLI and Go library for importing GitHub App private keys into AWS KMS as non-extractable key material"
+    license: "asl20"
+
 # Changelog and release notes are owned by release-please, not GoReleaser.
 
 # Note: artifacts are NOT signed by GoReleaser. Keyless build-provenance

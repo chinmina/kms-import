@@ -132,6 +132,24 @@ sh install.sh
 </details>
 
 <details>
+<summary><strong>Homebrew (macOS)</strong></summary>
+
+```sh
+brew install chinmina/tap/kms-import
+```
+
+</details>
+
+<details>
+<summary><strong>Nix</strong></summary>
+
+```sh
+nix profile install github:chinmina/nixpkgs#kms-import
+```
+
+</details>
+
+<details>
 <summary><strong>Manual download</strong></summary>
 
 Download the archive for your platform from the
