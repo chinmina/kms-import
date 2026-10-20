@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0](https://github.com/chinmina/kms-import/compare/v1.1.4...v1.2.0) (2026-10-20)
+
+
+### Features
+
+* **release:** publish Homebrew and Nix recipes ([#59](https://github.com/chinmina/kms-import/issues/59)) ([0c432fe](https://github.com/chinmina/kms-import/commit/0c432fe93cdfa2920158c2c5ab92a5095fc53866))
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies ([#54](https://github.com/chinmina/kms-import/issues/54)) ([36fb099](https://github.com/chinmina/kms-import/commit/36fb099646037c8bd52f4d883c113464b19cf5b3))
+* **deps:** update dependency go to v1.27.2 ([#57](https://github.com/chinmina/kms-import/issues/57)) ([50be716](https://github.com/chinmina/kms-import/commit/50be716921d48f6ed007b1069cb7654f76d4ad5d))
+* **deps:** update go dependencies ([#52](https://github.com/chinmina/kms-import/issues/52)) ([d7142e8](https://github.com/chinmina/kms-import/commit/d7142e880b37ec1bf38204f5aed913c28938f54c))
+* **deps:** update jdx/mise-action action to v5 ([#53](https://github.com/chinmina/kms-import/issues/53)) ([b16efb8](https://github.com/chinmina/kms-import/commit/b16efb890f5dc197f96d119d053e8d4756695482))
+* **deps:** update mise packages ([#51](https://github.com/chinmina/kms-import/issues/51)) ([2bfa20a](https://github.com/chinmina/kms-import/commit/2bfa20a5fe0f4f4715c4f97f485ad23266638b9c))
+* **deps:** update mise packages ([#58](https://github.com/chinmina/kms-import/issues/58)) ([3c976e0](https://github.com/chinmina/kms-import/commit/3c976e03ff711972ffd33f3cd666822fa055b2fc))
+
 ## [1.1.4](https://github.com/chinmina/kms-import/compare/v1.1.3...v1.1.4) (2026-09-21)
 
 
