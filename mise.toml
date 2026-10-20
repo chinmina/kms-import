@@ -1,8 +1,8 @@
 [tools]
 go            = "1.27.2"
 golangci-lint = "2.14.0"
-goreleaser    = "2.18.2"
-just          = "1.58.0"
+goreleaser    = "2.18.3"
+just          = "1.59.0"
 
 # binstaller has no mise registry short name; alias the github backend so the
 # tool surfaces as `binstaller` (what the shared setup-release-toolchain action
