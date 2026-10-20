@@ -44,16 +44,11 @@ func command() *clipkg.Command {
 }
 
 func generateKeyCommand() *clipkg.Command {
-	pkcs1Flag := &clipkg.BoolFlag{Name: "pkcs1", Usage: "write a PKCS#1 PEM (\"RSA PRIVATE KEY\")"}
-	pkcs8Flag := &clipkg.BoolFlag{Name: "pkcs8", Usage: "write a PKCS#8 PEM (\"PRIVATE KEY\")"}
-
 	return &clipkg.Command{
 		Name:      "generate-key",
 		Usage:     "generate a fresh RSA-2048 private key PEM",
 		UsageText: "kms-support generate-key (--pkcs1 | --pkcs8) --output <path>",
 		Flags: []clipkg.Flag{
-			pkcs1Flag,
-			pkcs8Flag,
 			&clipkg.StringFlag{
 				Name:     "output",
 				Usage:    "secure path where the generated PEM will be written; must not already exist",
@@ -63,7 +58,12 @@ func generateKeyCommand() *clipkg.Command {
 		MutuallyExclusiveFlags: []clipkg.MutuallyExclusiveFlags{
 			{
 				Required: true,
-				Flags:    [][]clipkg.Flag{{pkcs1Flag}, {pkcs8Flag}},
+				// Mutex-group flags are registered on the command by urfave/cli;
+				// listing them in Flags as well is rejected as a duplicate.
+				Flags: [][]clipkg.Flag{
+					{&clipkg.BoolFlag{Name: "pkcs1", Usage: "write a PKCS#1 PEM (\"RSA PRIVATE KEY\")"}},
+					{&clipkg.BoolFlag{Name: "pkcs8", Usage: "write a PKCS#8 PEM (\"PRIVATE KEY\")"}},
+				},
 			},
 		},
 		Action: func(ctx context.Context, cmd *clipkg.Command) error {
