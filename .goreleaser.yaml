@@ -1,6 +1,10 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
+# Names the archives, cask, and Nix package. Without it, goreleaser uses the
+# repository name.
+project_name: kms-import
+
 builds:
   - id: release
     binary: kms-import
@@ -35,6 +39,9 @@ homebrew_casks:
       owner: chinmina
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}" # set by the wrapper from the minted tap token
+    # Leave the committer unset, so GitHub signs the commit as the token's App.
+    commit_author:
+      use_github_app_token: true
     # release.prerelease: auto only marks the RELEASE as prerelease; this stops
     # the cask being pushed on a prerelease tag.
     skip_upload: auto
@@ -59,6 +66,9 @@ nix:
       owner: chinmina
       name: nixpkgs
       token: "{{ .Env.NIX_GITHUB_TOKEN }}" # set by the wrapper from the minted package-repo token
+    # Leave the committer unset, so GitHub signs the commit as the token's App.
+    commit_author:
+      use_github_app_token: true
     skip_upload: auto
     homepage: "https://github.com/chinmina/kms-import"
     description: "CLI and Go library for importing GitHub App private keys into AWS KMS as non-extractable key material"
@@ -80,4 +90,5 @@ release:
   # so no artifact is downloadable before its provenance is recorded.
   draft: true
   use_existing_draft: true
+  replace_existing_artifacts: true # let a re-run replace assets an earlier run uploaded
   mode: keep-existing

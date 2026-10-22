@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+# mise.toml is the source of truth for tool versions. Each job installs only the
+# tools it needs through mise-action; setup-go is given no version, so it adopts
+# the mise-installed Go and only adds module/build caching and problem matchers.
+#
+# Tool caches (mise, golangci-lint) are saved only on push to main; other runs
+# restore them read-only. setup-go has no save-only switch, so its cache follows
+# GitHub's defaults (PR saves are scoped to the PR ref).
+
 jobs:
   test:
     name: Test
@@ -17,22 +25,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          install: false
+          install_args: go just
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
-      - name: Read just version
-        id: tool-versions
-        run: echo "just=$(mise current just)" >> "$GITHUB_OUTPUT"
-
-      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-        with:
-          just-version: ${{ steps.tool-versions.outputs.just }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
 
       - name: Run tests
         run: just test
@@ -45,28 +43,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          install: false
+          install_args: go golangci-lint
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
-      - name: Read tool versions
-        id: tool-versions
-        run: |
-          echo "just=$(mise current just)" >> "$GITHUB_OUTPUT"
-          echo "golangci-lint=$(mise current golangci-lint)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
 
-      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-        with:
-          just-version: ${{ steps.tool-versions.outputs.just }}
-
+      # Runs the mise-installed golangci-lint; the action adds PR annotations
+      # and caches lint results.
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v${{ steps.tool-versions.outputs.golangci-lint }}
+          install-mode: none
+          skip-save-cache: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
   build:
     name: Build (snapshot)
@@ -77,23 +66,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          install: false
+          install_args: go goreleaser
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
-      - name: Read goreleaser version
-        id: tool-versions
-        run: echo "goreleaser=$(mise current goreleaser)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
 
-      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
-        with:
-          version: ${{ steps.tool-versions.outputs.goreleaser }}
-          args: build --snapshot --clean --single-target
+      - name: Build snapshot
+        run: goreleaser build --snapshot --clean --single-target
 
   system-test:
     name: System tests
@@ -103,22 +84,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          install: false
+          install_args: go just
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
-      - name: Read just version
-        id: tool-versions
-        run: echo "just=$(mise current just)" >> "$GITHUB_OUTPUT"
-
-      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-        with:
-          just-version: ${{ steps.tool-versions.outputs.just }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
 
       - name: Run system tests
         run: just test-system

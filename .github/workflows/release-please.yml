@@ -19,11 +19,12 @@ jobs:
       # REQUIRED on BOTH token paths: the reusable job declares id-token: write,
       # so the caller must match it even on the app path (where it is unused).
       id-token: write
-    uses: chinmina/.github/.github/workflows/release-please.yml@verified-actions # zizmor: ignore[secrets-inherit]
+    uses: chinmina/.github/.github/workflows/release-please.yml@verified-actions
     with:
       token-source: app
-    # app path: the RELEASE_PLEASE_* secrets are environment-scoped, and a
-    # reusable-workflow call job cannot declare an `environment:`, so they can
-    # only resolve inside the reusable workflow's env-targeting job — which is
-    # what `inherit` enables. A narrowed map would read empty.
-    secrets: inherit
+    # The App secrets live in the automation environment. Passed by name, GitHub
+    # resolves them for the reusable job, which runs there. `secrets: inherit`
+    # passes nothing across owners, so the kit standard is the named map.
+    secrets:
+      RELEASE_PLEASE_CLIENT_ID: ${{ secrets.RELEASE_PLEASE_CLIENT_ID }}
+      RELEASE_PLEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
