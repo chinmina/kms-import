@@ -1,0 +1,75 @@
+# THROWAWAY: probes whether a step-level ACTIONS_CACHE_MODE on actions/setup-go
+# suppresses the cache save in its post step. Do not merge.
+name: cache-mode-probe
+
+on:
+  push:
+    branches: [throwaway/cache-mode-probe]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: probe (${{ matrix.case }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # control: no override, save expected
+        # literal-read: env ACTIONS_CACHE_MODE: read, save expected to be skipped
+        # expr: the expression ci.yml would use; on this branch it evaluates to read
+        case: [control, literal-read, expr]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          install_args: go
+          cache: false
+
+      - name: Runner-provided cache mode
+        run: echo "ACTIONS_CACHE_MODE=${ACTIONS_CACHE_MODE-<unset>}"
+
+      # Unique dependency file per run+case forces a cache miss, so the post
+      # step always attempts a save unless the cache mode stops it.
+      - name: Make unique cache key input
+        env:
+          CASE: ${{ matrix.case }}
+        run: |
+          mkdir -p .probe
+          echo "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CASE}" > .probe/key.txt
+
+      - name: setup-go (control)
+        if: matrix.case == 'control'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache-dependency-path: .probe/key.txt
+
+      - name: setup-go (literal-read)
+        if: matrix.case == 'literal-read'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        env:
+          ACTIONS_CACHE_MODE: read
+        with:
+          cache-dependency-path: .probe/key.txt
+
+      - name: setup-go (expr)
+        if: matrix.case == 'expr'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        env:
+          ACTIONS_CACHE_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && 'write' || 'read' }}
+        with:
+          cache-dependency-path: .probe/key.txt
+
+      - name: Go resolves to mise
+        run: |
+          command -v go
+          go version
+          echo "ACTIONS_CACHE_MODE after setup-go=${ACTIONS_CACHE_MODE-<unset>}"
+
+      # Populate GOMODCACHE/GOCACHE so there is something to save.
+      - name: Build
+        run: go build ./...
