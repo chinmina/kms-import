@@ -13,13 +13,15 @@ jobs:
   probe:
     name: probe (${{ matrix.case }})
     runs-on: ubuntu-latest
+    # job-level variant: only set for the job-* cases
+    env:
+      ACTIONS_CACHE_MODE: ${{ startsWith(matrix.case, 'job-') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') && 'write' || 'read') || '' }}
     strategy:
       fail-fast: false
       matrix:
         # control: no override, save expected
-        # literal-read: env ACTIONS_CACHE_MODE: read, save expected to be skipped
-        # expr: the expression ci.yml would use; on this branch it evaluates to read
-        case: [control, literal-read, expr]
+        # job-expr: job-level env with the ci.yml expression; evaluates to read here
+        case: [control, job-expr]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,25 +44,8 @@ jobs:
           mkdir -p .probe
           echo "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CASE}" > .probe/key.txt
 
-      - name: setup-go (control)
-        if: matrix.case == 'control'
+      - name: setup-go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          cache-dependency-path: .probe/key.txt
-
-      - name: setup-go (literal-read)
-        if: matrix.case == 'literal-read'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        env:
-          ACTIONS_CACHE_MODE: read
-        with:
-          cache-dependency-path: .probe/key.txt
-
-      - name: setup-go (expr)
-        if: matrix.case == 'expr'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        env:
-          ACTIONS_CACHE_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && 'write' || 'read' }}
         with:
           cache-dependency-path: .probe/key.txt
 
