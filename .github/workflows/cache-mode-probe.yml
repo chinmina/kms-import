@@ -5,6 +5,7 @@ name: cache-mode-probe
 on:
   push:
     branches: [throwaway/cache-mode-probe]
+  pull_request:
 
 permissions:
   contents: read
@@ -13,15 +14,12 @@ jobs:
   probe:
     name: probe (${{ matrix.case }})
     runs-on: ubuntu-latest
-    # job-level variant: only set for the job-* cases
-    env:
-      ACTIONS_CACHE_MODE: ${{ startsWith(matrix.case, 'job-') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') && 'write' || 'read') || '' }}
     strategy:
       fail-fast: false
       matrix:
         # control: no override, save expected
-        # job-expr: job-level env with the ci.yml expression; evaluates to read here
-        case: [control, job-expr]
+        # pull_request run: shows the default cache mode GitHub applies to PRs
+        case: [control]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,7 +40,7 @@ jobs:
           CASE: ${{ matrix.case }}
         run: |
           mkdir -p .probe
-          echo "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CASE}" > .probe/key.txt
+          echo "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_EVENT_NAME}-${CASE}" > .probe/key.txt
 
       - name: setup-go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
