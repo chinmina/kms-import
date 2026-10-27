@@ -19,6 +19,62 @@ Import it, confirm it, and destroy your local PEM: the canonical private key now
 lives only inside KMS, governed by IAM, audited by CloudTrail, and rotatable by
 a single alias update.
 
+## What importing key material involves
+
+KMS will not accept a private key as-is. Key material must arrive encrypted
+("wrapped") under a one-time public key that KMS issues for that specific
+target key, in exactly the byte format the chosen wrapping algorithm expects.
+Get any detail wrong and KMS rejects the import with little more than "invalid
+ciphertext".
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant PEM as app.pem (local)
+    participant Tool as kms-import (in memory)
+    participant KMS as AWS KMS (HSM)
+
+    PEM->>Tool: Read GitHub App private key (PKCS#1 or PKCS#8 PEM)
+    Tool->>Tool: Convert to PKCS#8 DER
+    Tool->>KMS: GetParametersForImport(key, RSA_AES_KEY_WRAP_SHA_256, RSA_4096)
+    KMS-->>Tool: Wrapping public key + import token (valid 24 h)
+    Tool->>Tool: Generate ephemeral AES-256 key
+    Tool->>Tool: AES key-wrap (RFC 5649) the DER key material
+    Tool->>Tool: RSA-OAEP-SHA-256 encrypt the AES key under the wrapping key
+    Tool->>Tool: Concatenate: encrypted AES key ‖ wrapped key material
+    Tool->>KMS: ImportKeyMaterial(key, import token, ciphertext, expiry model)
+    KMS->>KMS: Unwrap inside the HSM, bind material to key
+    KMS-->>Tool: Key state: Enabled
+    Tool->>Tool: Wipe ephemeral AES key
+```
+
+Doing this by hand follows the
+[AWS import procedure](https://docs.aws.amazon.com/kms/latest/developerguide/importing-keys.html):
+call `get-parameters-for-import`, base64-decode the public key and token to
+files, convert the PEM to PKCS#8 DER with `openssl pkcs8`, generate an AES key
+with `openssl rand`, wrap the key material with `openssl enc
+-id-aes256-wrap-pad` (OpenSSL 3.x only — the LibreSSL shipped with macOS lacks
+it), encrypt the AES key with `openssl pkeyutl` and the correct OAEP/MGF1
+digest options, concatenate the two outputs, and pass the result to
+`import-key-material` before the token expires.
+
+That manual path has real costs:
+
+- **Plaintext intermediates on disk.** The DER private key and the raw AES
+  wrapping key are written to files that must then be reliably destroyed —
+  more copies of exactly the secret you are trying to eliminate.
+- **Silent failure modes.** A wrong digest, missing padding variant, swapped
+  concatenation order, or a token from a different `get-parameters-for-import`
+  call all produce an opaque KMS error, not a hint.
+- **Toolchain drift.** The steps depend on specific OpenSSL builds and flags
+  that vary across operator machines.
+
+`kms-import` runs that whole sequence in a single process with no intermediate
+files: the PEM is the only input, nothing but ciphertext leaves the process,
+the wrapping algorithm is pinned to AWS's current recommendation, and the
+ephemeral AES key is wiped after use. The same command handles the initial
+import and any later reimport.
+
 ## Quick start
 
 `kms-import` does not create KMS keys; it only pushes key material into one that
@@ -189,10 +245,9 @@ Source builds are not stamped with a release version, so `--version` reports
 
 ## Usage
 
-The [Quick start](#quick-start) shows a basic invocation. Under the hood
-`kms-import` reads the PEM, converts it to PKCS#8 DER, fetches wrapping
-parameters from KMS, encrypts the key material under the returned wrapping key,
-and calls `ImportKeyMaterial`. The full flag set follows.
+The [Quick start](#quick-start) shows a basic invocation; see
+[What importing key material involves](#what-importing-key-material-involves)
+for what happens under the hood. The full flag set follows.
 
 ### CLI reference
 
