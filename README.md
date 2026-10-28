@@ -7,6 +7,28 @@ private key exists nowhere outside KMS.
 It ships as a CLI and a Go library. It imports into an existing KMS key and
 does not create keys.
 
+## Security rationale
+
+A GitHub App private key grants every permission of the app to anyone who holds
+it. Storing it in KMS rather than as a plaintext secret provides:
+
+- **Non-extractability.** Imported material stays inside the KMS HSM boundary
+  and no API reads it back. The application receives only signatures from
+  `kms:Sign`.
+- **Policy-based access.** Every use is authorised by the key policy and IAM,
+  and access is revocable without touching the application.
+- **Audit.** CloudTrail records every `GetParametersForImport`,
+  `ImportKeyMaterial`, and `Sign` call against the key.
+- **Alias-based rotation.** An application that signs through an alias picks up
+  a replacement key with no restart or configuration change.
+
+## Quick links
+
+- [Protecting the GitHub private key][chinmina-kms] describes the full key
+  lifecycle that `kms-import` is part of: creating and restricting the key,
+  configuring the signing service, and rotation.
+- [Quick start](#quick-start) imports a key from the command line.
+
 ## How import works
 
 KMS accepts key material only when it is encrypted ("wrapped") under a one-time
@@ -381,21 +403,6 @@ The [rotation process on docs.chinmina.dev][chinmina-rotate] covers the full
 sequence. It includes generating the new key in GitHub, confirming the cutover
 in CloudTrail, and deleting the old private key in GitHub, which is the step
 that revokes it.
-
-## Security rationale
-
-A GitHub App private key grants every permission of the app to anyone who holds
-it. Storing it in KMS rather than as a plaintext secret provides:
-
-- **Non-extractability.** Imported material stays inside the KMS HSM boundary
-  and no API reads it back. The application receives only signatures from
-  `kms:Sign`.
-- **Policy-based access.** Every use is authorised by the key policy and IAM,
-  and access is revocable without touching the application.
-- **Audit.** CloudTrail records every `GetParametersForImport`,
-  `ImportKeyMaterial`, and `Sign` call against the key.
-- **Alias-based rotation.** An application that signs through an alias picks up
-  a replacement key with no restart or configuration change.
 
 ## Library usage
 
