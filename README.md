@@ -1,61 +1,122 @@
 # kms-import
 
-CLI tool and Go library that imports a GitHub App private key (PEM) into AWS KMS
-as non-extractable key material.
+`kms-import` imports a GitHub App private key into AWS KMS as non-extractable
+key material. Applications then sign GitHub App JWTs with `kms:Sign`, and the
+private key exists nowhere outside KMS.
 
-A GitHub App's private key is powerful: anyone who holds it can impersonate the
-app indefinitely. Stored as a plaintext secret, that key is a standing
-liability — every place it is copied is another way to lose it.
+It ships as a CLI and a Go library. It imports into an existing KMS key and
+does not create keys.
 
-Importing the key into AWS KMS removes that attack surface entirely. The key
-material lives inside the KMS HSM, where it cannot be read back out; the
-application signs GitHub App JWTs through the KMS `Sign` API and never touches
-the key itself. The catch is that importing key material into KMS is a fiddly,
-cryptographically-unforgiving sequence — which is why the posture is so often
-skipped. `kms-import` reduces it to a single command.
+## Security rationale
 
-Once the key material is in KMS, no other copy of it needs to exist anywhere.
-Import it, confirm it, and destroy your local PEM: the canonical private key now
-lives only inside KMS, governed by IAM, audited by CloudTrail, and rotatable by
-a single alias update.
+A GitHub App private key grants every permission of the app to anyone who holds
+it. Storing it in KMS rather than as a plaintext secret provides:
+
+- **Non-extractability.** Imported material stays inside the KMS HSM boundary
+  and no API reads it back. The application receives only signatures from
+  `kms:Sign`.
+- **Policy-based access.** Every use is authorised by the key policy and IAM,
+  and access is revocable without touching the application.
+- **Audit.** CloudTrail records every `GetParametersForImport`,
+  `ImportKeyMaterial`, and `Sign` call against the key.
+- **Alias-based rotation.** An application that signs through an alias picks up
+  a replacement key with no restart or configuration change.
+
+## Quick links
+
+- [Protecting the GitHub private key][chinmina-kms] describes the full key
+  lifecycle that `kms-import` is part of: creating and restricting the key,
+  configuring the signing service, and rotation.
+- [Quick start](#quick-start) imports a key from the command line.
+
+## How import works
+
+KMS accepts key material only when it is encrypted ("wrapped") under a one-time
+public key issued for the target key. The ciphertext must match the wrapping
+algorithm's byte format exactly, and KMS rejects any mistake with a generic
+error.
+
+The diagram shows each step of one import. Everything on the local side happens
+in memory.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    box rgba(29,78,216,0.10) Local machine
+        participant PEM as app.pem
+        participant Tool as kms-import (in memory)
+    end
+    box rgba(126,34,206,0.10) AWS
+        participant KMS as AWS KMS (HSM)
+    end
+
+    PEM->>Tool: Read GitHub App private key (PKCS#35;1 or PKCS#35;8 PEM)
+    Tool->>Tool: Convert to PKCS#35;8 DER
+    Tool->>KMS: GetParametersForImport(key, RSA_AES_KEY_WRAP_SHA_256, RSA_4096)
+    KMS-->>Tool: Wrapping public key + import token (valid 24 h)
+    Tool->>Tool: Generate ephemeral AES-256 key
+    Tool->>Tool: AES key-wrap (RFC 5649) the DER key material
+    Tool->>Tool: RSA-OAEP-SHA-256 encrypt the AES key under the wrapping key
+    Tool->>Tool: Concatenate: encrypted AES key ‖ wrapped key material
+    Tool->>Tool: Wipe ephemeral AES key
+    Tool->>KMS: ImportKeyMaterial(key, import token, ciphertext, expiry model)
+    KMS->>KMS: Unwrap inside the HSM, bind material to key
+    KMS-->>Tool: Success
+```
+
+The wrapping algorithm is fixed at `RSA_AES_KEY_WRAP_SHA_256` with an `RSA_4096`
+wrapping key, the AWS recommendation for asymmetric key material. Only
+`RSA_2048` key material is supported, which is the spec GitHub issues App keys
+in.
+
+The [manual import procedure][aws-import] performs the same steps with the AWS
+CLI and `openssl`, at these costs:
+
+- **Plaintext files.** The DER private key and the AES wrapping key are written
+  to disk, creating more copies of the secret to destroy.
+- **Opaque failures.** A wrong digest, padding variant, concatenation order, or
+  import token all produce the same generic KMS error.
+- **Toolchain dependence.** AES key wrap with padding needs OpenSSL 3.x. The
+  LibreSSL shipped with macOS lacks it.
 
 ## Quick start
 
-`kms-import` does not create KMS keys; it only pushes key material into one that
-already exists with `EXTERNAL` origin. Create a compatible key, import your
-GitHub App PEM into it, then throw the PEM away.
+This guide imports a GitHub App private key into a new KMS key with default
+settings. For production, follow [Protecting the GitHub private
+key][chinmina-kms] on docs.chinmina.dev. It adds the key alias that rotation
+depends on, a key policy that restricts signing to one service, and the order to
+apply them in.
 
-1. **Install the binary** (see [Installation](#installation) for all the
-   options, including verified release downloads):
+Before you start, you need:
+
+- The GitHub App private key as a PEM file, referred to below as `<PEM_FILE>`.
+- AWS credentials allowed to call `kms:CreateKey`, plus the
+  [import permissions](#iam-permissions).
+
+1. Install `kms-import`. [Installation](#installation) lists the other channels.
 
    ```sh
    mise use -g github:chinmina/kms-import
    ```
 
-2. **Create a compatible KMS key.** It must have `EXTERNAL` origin (so its
-   material can be imported), key spec `RSA_2048` (the spec GitHub issues App
-   keys in), and `SIGN_VERIFY` usage (the key signs JWTs; it does not encrypt):
+2. Create a KMS key, and save the printed ARN as `<KEY_ARN>`.
 
    ```sh
-   aws kms create-key --origin EXTERNAL --key-spec RSA_2048 --key-usage SIGN_VERIFY
+   aws kms create-key --origin EXTERNAL --key-spec RSA_2048 --key-usage SIGN_VERIFY \
+     --query KeyMetadata.Arn --output text
    ```
 
-   This is the bare minimum. In production you would provision the key — and its
-   alias, tags, and resource policy — with CloudFormation or Terraform. Do that,
-   but **import the key material with `kms-import`, not with your IaC.**
-   Terraform's `aws_kms_external_key` takes the raw key material and persists it:
-   "all arguments including the key material will be stored in the raw state as
-   plain text" ([provider docs][tf-state]). That recreates exactly the extra
-   plaintext copy of the private key this approach exists to eliminate.
-   (CloudFormation cannot import external key material at all.)
+   `EXTERNAL` origin allows import, `RSA_2048` matches GitHub App keys, and
+   `SIGN_VERIFY` lets the key sign JWTs. The key starts in the `PendingImport`
+   state.
 
-3. **Import the key material** into the key by ID or ARN:
+3. Import the private key.
 
    ```sh
-   kms-import --key-file app.pem --key-arn arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+   kms-import --key-file <PEM_FILE> --key-arn <KEY_ARN>
    ```
 
-   On success it prints the resolved key ID and resulting state:
+   A successful import prints:
 
    ```text
    ✅ Key material imported successfully
@@ -65,17 +126,29 @@ GitHub App PEM into it, then throw the PEM away.
    The key is ready to use for signing.
    ```
 
-4. **Destroy the local PEM.** The key material now lives only in KMS. Grant the
-   application `kms:Sign` on the key and delete every other copy of the PEM.
+4. Confirm the key state.
 
-[tf-state]: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_external_key
+   ```sh
+   aws kms describe-key --key-id <KEY_ARN> --query KeyMetadata.KeyState --output text
+   ```
+
+   The output is `Enabled`.
+
+5. Destroy every local copy of the PEM file. KMS cannot export the material, so
+   a local copy is the only remaining way to leak the key.
+
+> [!CAUTION]
+> Do not import key material with infrastructure-as-code tooling. Terraform's
+> `aws_kms_external_key` stores "all arguments including the key material … in
+> the raw state as plain text" ([provider docs][tf-state]), and CloudFormation
+> cannot import key material at all. Provision the key with IaC, leave
+> `key_material_base64` unset, and import with `kms-import`.
 
 ## Installation
 
 Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) are published to
-[GitHub Releases](https://github.com/chinmina/kms-import/releases). Every
-artifact carries a build-provenance attestation — see
-[Verifying releases](#verifying-releases).
+[GitHub Releases][releases]. Every artifact carries a build-provenance
+attestation, described in [Verifying releases](#verifying-releases).
 
 <details>
 <summary><strong>mise (recommended)</strong></summary>
@@ -187,17 +260,10 @@ Source builds are not stamped with a release version, so `--version` reports
 
 </details>
 
-## Usage
+## CLI reference
 
-The [Quick start](#quick-start) shows a basic invocation. Under the hood
-`kms-import` reads the PEM, converts it to PKCS#8 DER, fetches wrapping
-parameters from KMS, encrypts the key material under the returned wrapping key,
-and calls `ImportKeyMaterial`. The full flag set follows.
-
-### CLI reference
-
-Exactly one target flag (`--key-id` or `--key-arn`) is required; supplying both,
-or neither, is an error. All other flags are optional except `--key-file`.
+`--key-file` and exactly one of `--key-id` or `--key-arn` are required. All
+other flags are optional.
 
 | Flag         | Type   | Default | Description |
 |--------------|--------|---------|-------------|
@@ -211,22 +277,20 @@ or neither, is an error. All other flags are optional except `--key-file`.
 | `--help`, `-h`    | bool | `false` | Show help. |
 | `--version`, `-v` | bool | `false` | Print the version. |
 
-**Target selection.** Exactly one of `--key-id` / `--key-arn` must be given
-(mutually exclusive). The KMS import APIs accept only a key ID or key ARN — not
-an alias — so there is no `--alias` flag; see the rotation workflow below for how
-aliases fit in.
+**Target selection.** The KMS import APIs accept a key ID or key ARN only, so
+there is no `--alias` flag.
 
 **Credentials.** Credentials and region resolve through the standard AWS SDK
-chain (environment variables, shared config/credentials files, IMDS). `--profile`
-and `--region` override the corresponding defaults; when omitted, the SDK
-defaults apply.
+chain (environment variables, shared config and credentials files, and IMDS).
+`--profile` and `--region` override the corresponding defaults.
 
-**Expiry and reimport.** By default the imported material does not expire
-(`KEY_MATERIAL_DOES_NOT_EXPIRE`). With `--expires`, the material is set to expire
-at the supplied time (`KEY_MATERIAL_EXPIRES` + `ValidTo`). The same invocation
-performs both the initial import and a reimport after material has expired or
-been deleted — there is no separate mode or flag. AWS requires a reimport to use
-the *same* key material as the original.
+**Expiry and reimport.** Imported material does not expire by default
+(`KEY_MATERIAL_DOES_NOT_EXPIRE`). `--expires` sets `KEY_MATERIAL_EXPIRES` with
+the given `ValidTo`, and exists for compliance requirements. To revoke a
+compromised key, delete it in the GitHub App settings, which takes effect
+immediately. The same invocation performs both the initial import and a
+reimport after material expires or is deleted. AWS requires a reimport to use
+the same key material as the original.
 
 **JSON output.** With `--json`, stdout carries only the result object:
 
@@ -234,89 +298,36 @@ the *same* key material as the original.
 {"keyId":"1234abcd-12ab-34cd-56ef-1234567890ab","keyState":"Enabled"}
 ```
 
-**Errors.** Any AWS API failure exits non-zero with the error written to stderr;
-stdout stays empty (including in `--json` mode). Input errors — unreadable
-key file, undecodable PEM, unsupported PEM header, invalid `--expires` — also
-exit non-zero with a descriptive message.
+The reported `Enabled` state follows from a successful import. `kms-import`
+does not read it back from KMS; use `aws kms describe-key` to confirm it.
 
-### Wrapping algorithm
-
-The wrapping algorithm is fixed at `RSA_AES_KEY_WRAP_SHA_256` with a `RSA_4096`
-wrapping key and is not configurable. This is AWS's current recommendation for
-importing asymmetric private key material; it avoids the size constraints that
-affect the pure `RSAES_OAEP_*` algorithms with RSA key material. Only RSA 2048
-key material (the GitHub App key spec) is supported.
-
-### Library usage
-
-The import logic is exposed as a Go library that builds no SDK client and never
-calls `os.Exit`; the caller injects a `KMSClient` (the AWS SDK `*kms.Client`
-satisfies it). The CLI is also mountable as a subcommand of another urfave/cli
-v3 application via `cli.Command()`.
-
-```go
-import (
-	"context"
-
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/chinmina/kms-import/pkg/kmsimport"
-)
-
-cfg, _ := config.LoadDefaultConfig(ctx)
-der, _ := kmsimport.KeyMaterialFromPEM(pemBytes) // PEM (PKCS#1 or PKCS#8) → PKCS#8 DER
-res, err := kmsimport.Import(ctx,
-	kmsimport.WithClient(kms.NewFromConfig(cfg)),
-	kmsimport.WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
-	kmsimport.WithKeyMaterial(der),
-)
-```
-
-## Security rationale
-
-Storing a GitHub App private key in KMS rather than as a plaintext secret is a
-materially stronger posture:
-
-- **Non-extractability.** Imported key material lives inside the KMS HSM
-  boundary. There is no API to read it back, it never appears in plaintext
-  outside the HSM, and no AWS operator can retrieve it. The application calls
-  `kms:Sign` and receives only signature bytes — the key itself never moves.
-- **IAM and resource-policy access control.** Every use of the key is gated by
-  both the caller's IAM policy and the KMS key's resource policy. Access is
-  least-privilege and centrally revocable without touching the application, in
-  contrast to a raw secret that grants full impersonation to anyone who can read
-  it.
-- **CloudTrail audit visibility.** KMS records every `GetParametersForImport`,
-  `ImportKeyMaterial`, and subsequent `Sign` call in CloudTrail, giving a
-  complete, tamper-evident audit trail of who used the key and when. A plaintext
-  secret read leaves no comparable record of subsequent use.
-- **Alias-based rotation.** Referencing the key through a KMS alias makes
-  rotation a single pointer update (see below) with no application restart or
-  configuration change, and no window where the old and new keys are both live
-  in application config.
-
-For operational *revocation* of a compromised key, revoke the GitHub App private
-key in GitHub directly — that is faster and more direct than waiting for KMS key
-material to expire. The `--expires` flag exists for organisational compliance
-requirements, not for emergency revocation.
+**Errors.** Any failure exits non-zero with the error on stderr and nothing on
+stdout, including in `--json` mode. Input errors (an unreadable key file, an
+undecodable PEM, an unsupported PEM header, or an invalid `--expires`) are
+reported before any AWS call.
 
 ## IAM permissions
 
-`kms-import` needs exactly two KMS actions: `kms:GetParametersForImport` and
-`kms:ImportKeyMaterial`. Because KMS authorizes key operations through the key's
-resource policy, the importing principal must be granted these actions in
-**both** the caller's IAM policy and the KMS key's resource policy. The two
-fragments are separated below.
+`kms-import` calls two actions on the target key: `kms:GetParametersForImport`
+and `kms:ImportKeyMaterial`. KMS allows an action when the key policy allows
+it, either by granting it directly or by delegating to IAM policies in the
+account. Where to grant the import actions depends on the key policy:
+
+- **Default key policy.** It delegates to IAM, so the caller IAM policy alone is
+  enough.
+- **Restrictive key policy.** Add the key policy statement as well as the caller
+  IAM policy. The [key policy recommended by docs.chinmina.dev][chinmina-policy]
+  already grants both actions to administrator roles through its
+  `AdministratorsManage` statement.
 
 Replace the account ID, region, key ID, and role ARN with your own values.
 
 ### Caller IAM policy
 
-Attach this to the principal (role/user) that runs `kms-import`. It is scoped to
-the specific key ARN. The `GetParametersForImport` statement is additionally
-constrained to the wrapping algorithm and key spec this tool uses; the
-`ImportKeyMaterial` statement may optionally be constrained with
-`kms:ExpirationModel` / `kms:ValidTo` if you want to mandate (non-)expiry.
+Attach this policy to the principal that runs `kms-import`. It is scoped to the
+key ARN, and `GetParametersForImport` is constrained to the wrapping algorithm
+and key spec `kms-import` uses. `ImportKeyMaterial` can also be constrained with
+`kms:ExpirationModel` and `kms:ValidTo` to mandate an expiry policy.
 
 ```json
 {
@@ -344,94 +355,89 @@ constrained to the wrapping algorithm and key spec this tool uses; the
 }
 ```
 
-### KMS key resource policy
+### Key policy statement
 
-Add this statement to the resource policy of the target KMS key, granting the
-importing principal the same two actions. Within a key policy, `"Resource": "*"`
-refers to the key the policy is attached to.
+Add this statement to a restrictive key policy. It names the account as the
+principal and matches the importing role with `aws:PrincipalArn`, so it keeps
+working when the role is recreated ([rationale][chinmina-principal]). Within a
+key policy, `"Resource": "*"` refers to the key the policy is attached to.
 
 ```json
 {
   "Sid": "AllowKeyMaterialImport",
   "Effect": "Allow",
   "Principal": {
-    "AWS": "arn:aws:iam::111122223333:role/KeyImporter"
+    "AWS": "arn:aws:iam::111122223333:root"
   },
   "Action": [
     "kms:GetParametersForImport",
     "kms:ImportKeyMaterial"
   ],
-  "Resource": "*"
+  "Resource": "*",
+  "Condition": {
+    "ArnLike": {
+      "aws:PrincipalArn": "arn:aws:iam::111122223333:role/KeyImporter"
+    }
+  }
 }
 ```
 
-> **Note on alias scoping.** The `kms:RequestAlias` condition key — which scopes
-> access to requests that name the key by a particular alias — applies only to
-> cryptographic operations, `DescribeKey`, and `GetPublicKey`. It has **no
-> effect** on `GetParametersForImport` or `ImportKeyMaterial`; a policy that
-> tried to scope these import actions by alias would never match and the
-> permission would be ineffective. Scope the import permissions by the key ARN
-> instead, as shown above. (Alias scoping is still the right pattern for the
-> *runtime* `kms:Sign` permission the application uses.)
+> [!NOTE]
+> The `kms:RequestAlias` condition key has no effect on `GetParametersForImport`
+> or `ImportKeyMaterial`, so scope import permissions by key ARN. Alias scoping
+> belongs on the application's `kms:Sign` permission, as shown in
+> [Configuring the Chinmina service][chinmina-sign].
 
-## Alias-based rotation workflow
+## Key rotation
 
-The recommended production pattern is to always reference the KMS key through an
-alias, so the application never needs to know the underlying key ID. To rotate
-to a new GitHub App private key:
+KMS cannot rotate imported asymmetric key material. Rotation creates a
+replacement key, imports a new GitHub App private key into it, and repoints the
+alias the application signs through.
 
-1. **Create a new KMS key** with `EXTERNAL` origin via your IaC (CDK/Terraform).
-   CloudFormation can express the KMS key shell directly:
+`kms-import` performs the import step. Target the replacement key by ARN, since
+the alias still points at the old key and the import APIs reject aliases.
+Confirm that `aws kms describe-key --key-id <KEY_ARN>` reports a `KeyState` of
+`Enabled` before repointing the alias.
 
-   ```yaml
-   GitHubAppKey:
-     Type: AWS::KMS::Key
-     Properties:
-       Origin: EXTERNAL
-       KeySpec: RSA_2048
-       KeyUsage: SIGN_VERIFY
-   ```
+The [rotation process on docs.chinmina.dev][chinmina-rotate] covers the full
+sequence. It includes generating the new key in GitHub, confirming the cutover
+in CloudTrail, and deleting the old private key in GitHub, which is the step
+that revokes it.
 
-   Terraform uses `aws_kms_external_key` for the same `CreateKey` shape:
+## Library usage
 
-   ```terraform
-   resource "aws_kms_external_key" "github_app" {
-     description = "RSA-2048 external KMS key for GitHub App signing"
-     key_spec    = "RSA_2048"
-     key_usage   = "SIGN_VERIFY"
-   }
-   ```
+The import logic is a Go library that builds no SDK client and never calls
+`os.Exit`. The caller injects a `KMSClient`, which the AWS SDK `*kms.Client`
+satisfies. `cli.Command()` mounts the CLI as a subcommand of another urfave/cli
+v3 application.
 
-   Do not point the alias at it yet.
-2. **Import the new private key** into the new key by its ID or ARN:
+```go
+import (
+	"context"
 
-   ```sh
-   kms-import --key-file new-app.pem --key-arn arn:aws:kms:us-east-1:111122223333:key/<new-key-id>
-   ```
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/chinmina/kms-import/pkg/kmsimport"
+)
 
-   Import always targets a specific key generation by ID or ARN — the alias
-   still points at the old key at this stage, and the import APIs do not accept
-   an alias anyway.
-3. **Verify** the new key reached `Enabled` (the `kms-import` confirmation, or
-   `aws kms describe-key`).
-4. **Update the alias** to point at the new key (via IaC or
-   `aws kms update-alias`). The application picks up the new key on its next
-   signing call — no restart, redeploy, or configuration change required.
-5. **Retire the old key** once you are satisfied the new key is in use.
-
-Because signing always goes through the alias, the cutover is atomic from the
-application's perspective and requires no downtime.
+cfg, _ := config.LoadDefaultConfig(ctx)
+der, _ := kmsimport.KeyMaterialFromPEM(pemBytes) // PEM (PKCS#1 or PKCS#8) → PKCS#8 DER
+res, err := kmsimport.Import(ctx,
+	kmsimport.WithClient(kms.NewFromConfig(cfg)),
+	kmsimport.WithKeyID("1234abcd-12ab-34cd-56ef-1234567890ab"),
+	kmsimport.WithKeyMaterial(der),
+)
+```
 
 ## Verifying releases
 
-Release artifacts — the binary archives and the generated `install.sh` — are
-published to [GitHub Releases](https://github.com/chinmina/kms-import/releases)
-and carry a [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds)
-created with [Sigstore](https://www.sigstore.dev/) keyless signing. Each artifact
-is bound, by digest, to the source commit and the workflow run that built it.
-No long-lived signing key exists.
+Release artifacts (the binary archives and `install.sh`) are published to
+[GitHub Releases][releases] and carry a [build provenance
+attestation][gh-attestations] created with [Sigstore][sigstore] keyless
+signing. Each artifact is bound, by digest, to the source commit and the
+workflow run that built it. No long-lived signing key exists.
 
-Verify a downloaded artifact with the [GitHub CLI](https://cli.github.com/) (2.49.0 or later):
+Verify a downloaded artifact with the [GitHub CLI][gh-cli] (2.49.0 or later):
 
 ```sh
 gh attestation verify kms-import_linux_amd64.tar.gz --repo chinmina/kms-import \
@@ -442,8 +448,9 @@ gh attestation verify kms-import_linux_amd64.tar.gz --repo chinmina/kms-import \
 the artifacts are signed by the shared release workflow in `chinmina/.github`,
 not by a workflow in this repository.
 
-`checksums.txt` lists every archive. After downloading it alongside an archive, check with
-`sha256sum --check --ignore-missing checksums.txt`, or `shasum -a 256 --check --ignore-missing checksums.txt` on macOS.
+`checksums.txt` lists every archive. After downloading it alongside an archive,
+check with `sha256sum --check --ignore-missing checksums.txt`, or
+`shasum -a 256 --check --ignore-missing checksums.txt` on macOS.
 
 Releases are immutable: once published, their assets cannot be changed and
 their tag cannot be moved. GitHub records a release attestation of the tag,
@@ -453,3 +460,15 @@ commit, and every asset. Check a downloaded file against it with GitHub CLI
 ```sh
 gh release verify-asset v1.2.3 kms-import_linux_amd64.tar.gz --repo chinmina/kms-import
 ```
+
+[aws-import]: https://docs.aws.amazon.com/kms/latest/developerguide/importing-keys.html
+[chinmina-kms]: https://docs.chinmina.dev/guides/kms/
+[chinmina-policy]: https://docs.chinmina.dev/guides/kms/#restricting-access-to-the-key
+[chinmina-principal]: https://docs.chinmina.dev/guides/kms/#why-the-principal-is-never-named-directly
+[chinmina-sign]: https://docs.chinmina.dev/guides/kms/#configuring-the-chinmina-service
+[chinmina-rotate]: https://docs.chinmina.dev/guides/kms/#rotating-the-key
+[tf-state]: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_external_key
+[releases]: https://github.com/chinmina/kms-import/releases
+[gh-attestations]: https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds
+[sigstore]: https://www.sigstore.dev/
+[gh-cli]: https://cli.github.com/

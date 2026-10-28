@@ -54,8 +54,9 @@ has expired or been deleted; AWS requires a reimport to use the same key
 material as the original.
 
 The importing principal needs kms:GetParametersForImport and
-kms:ImportKeyMaterial in both its IAM policy and the key's resource policy. See
-the README for ready-to-use IAM and key-policy fragments.
+kms:ImportKeyMaterial in its IAM policy. If the key policy does not delegate to
+IAM (a non-default key policy), the key policy must grant them too. See the
+README for ready-to-use IAM and key-policy fragments.
 
 EXAMPLES:
    Import a key, targeting it by ARN:
