@@ -36,10 +36,10 @@ sequenceDiagram
     Tool->>Tool: AES key-wrap (RFC 5649) the DER key material
     Tool->>Tool: RSA-OAEP-SHA-256 encrypt the AES key under the wrapping key
     Tool->>Tool: Concatenate: encrypted AES key ‖ wrapped key material
+    Tool->>Tool: Wipe ephemeral AES key
     Tool->>KMS: ImportKeyMaterial(key, import token, ciphertext, expiry model)
     KMS->>KMS: Unwrap inside the HSM, bind material to key
-    KMS-->>Tool: Success (key is now Enabled)
-    Tool->>Tool: Wipe ephemeral AES key
+    KMS-->>Tool: Success
 ```
 
 The wrapping algorithm is fixed at `RSA_AES_KEY_WRAP_SHA_256` with an `RSA_4096`
@@ -94,7 +94,7 @@ Before you start, you need:
    kms-import --key-file <PEM_FILE> --key-arn <KEY_ARN>
    ```
 
-   The output confirms the key is ready:
+   A successful import prints:
 
    ```text
    ✅ Key material imported successfully
@@ -104,7 +104,15 @@ Before you start, you need:
    The key is ready to use for signing.
    ```
 
-4. Destroy every local copy of the PEM file. KMS cannot export the material, so
+4. Confirm the key state.
+
+   ```sh
+   aws kms describe-key --key-id <KEY_ARN> --query KeyMetadata.KeyState --output text
+   ```
+
+   The output is `Enabled`.
+
+5. Destroy every local copy of the PEM file. KMS cannot export the material, so
    a local copy is the only remaining way to leak the key.
 
 > [!CAUTION]
@@ -268,6 +276,9 @@ the same key material as the original.
 {"keyId":"1234abcd-12ab-34cd-56ef-1234567890ab","keyState":"Enabled"}
 ```
 
+The reported `Enabled` state follows from a successful import. `kms-import`
+does not read it back from KMS; use `aws kms describe-key` to confirm it.
+
 **Errors.** Any failure exits non-zero with the error on stderr and nothing on
 stdout, including in `--json` mode. Input errors (an unreadable key file, an
 undecodable PEM, an unsupported PEM header, or an invalid `--expires`) are
@@ -363,7 +374,8 @@ alias the application signs through.
 
 `kms-import` performs the import step. Target the replacement key by ARN, since
 the alias still points at the old key and the import APIs reject aliases.
-Confirm the key reports `Enabled` before repointing the alias.
+Confirm that `aws kms describe-key --key-id <KEY_ARN>` reports a `KeyState` of
+`Enabled` before repointing the alias.
 
 The [rotation process on docs.chinmina.dev][chinmina-rotate] covers the full
 sequence. It includes generating the new key in GitHub, confirming the cutover
