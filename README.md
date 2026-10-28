@@ -249,7 +249,7 @@ what the attestation proves and for checksum-only verification.
 <details>
 <summary><strong>go install</strong></summary>
 
-Build from source with Go 1.27.1+:
+Build from source with Go 1.27+:
 
 ```sh
 go install github.com/chinmina/kms-import/cmd/kms-import@latest
