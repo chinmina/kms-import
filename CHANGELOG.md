@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.2](https://github.com/chinmina/kms-import/compare/v1.2.1...v1.2.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **deps:** update dependency goreleaser to v2.19.0 ([#70](https://github.com/chinmina/kms-import/issues/70)) ([710ff39](https://github.com/chinmina/kms-import/commit/710ff39d20cbf53348d88903ffa85989955d1508))
+* **deps:** update go dependencies ([#69](https://github.com/chinmina/kms-import/issues/69)) ([ba58f26](https://github.com/chinmina/kms-import/commit/ba58f263c301cb36134556bb50cd9c7b89da2b16))
+* **deps:** update jdx/mise-action action to v5.2.3 ([#67](https://github.com/chinmina/kms-import/issues/67)) ([dc29aaa](https://github.com/chinmina/kms-import/commit/dc29aaa699fdb65a596984490ae4dd17a916b139))
+
 ## [1.2.1](https://github.com/chinmina/kms-import/compare/v1.2.0...v1.2.1) (2026-10-22)
 
 
