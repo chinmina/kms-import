@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.2](https://github.com/chinmina/kms-import/compare/v1.2.1...v1.2.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update dependency go to v1.27.4 ([#77](https://github.com/chinmina/kms-import/issues/77)) ([5f37bc8](https://github.com/chinmina/kms-import/commit/5f37bc8cf8ae038b2c17d2e7d7371b8f3b89085c))
+* **deps:** update dependency goreleaser to v2.19.0 ([#70](https://github.com/chinmina/kms-import/issues/70)) ([710ff39](https://github.com/chinmina/kms-import/commit/710ff39d20cbf53348d88903ffa85989955d1508))
+* **deps:** update dependency goreleaser to v2.20.0 ([#75](https://github.com/chinmina/kms-import/issues/75)) ([03768e9](https://github.com/chinmina/kms-import/commit/03768e921ebac6be40828612e4351bb5a11f5b40))
+* **deps:** update go dependencies ([#69](https://github.com/chinmina/kms-import/issues/69)) ([ba58f26](https://github.com/chinmina/kms-import/commit/ba58f263c301cb36134556bb50cd9c7b89da2b16))
+* **deps:** update go dependencies ([#73](https://github.com/chinmina/kms-import/issues/73)) ([3990f57](https://github.com/chinmina/kms-import/commit/3990f57a9f40f512e637d512517c3ef6af6ddfea))
+* **deps:** update go dependencies ([#74](https://github.com/chinmina/kms-import/issues/74)) ([20c6718](https://github.com/chinmina/kms-import/commit/20c67186c741482924dfb4e4bb7055b14427edcf))
+* **deps:** update jdx/mise-action action to v5.2.3 ([#67](https://github.com/chinmina/kms-import/issues/67)) ([dc29aaa](https://github.com/chinmina/kms-import/commit/dc29aaa699fdb65a596984490ae4dd17a916b139))
+* **deps:** update jdx/mise-action action to v5.2.6 ([#72](https://github.com/chinmina/kms-import/issues/72)) ([70d62ab](https://github.com/chinmina/kms-import/commit/70d62ab59ef6171410714087e6033ac15d31bfe9))
+* **deps:** update jdx/mise-action action to v5.2.7 ([#76](https://github.com/chinmina/kms-import/issues/76)) ([dd8a610](https://github.com/chinmina/kms-import/commit/dd8a6104c55cbef23d1c4fe6acf5e3eac63debcf))
+
 ## [1.2.1](https://github.com/chinmina/kms-import/compare/v1.2.0...v1.2.1) (2026-10-22)
 
 
